@@ -305,19 +305,25 @@
       var cn = 0, cs = 0;
       Object.keys(byDay).sort().forEach(function (d) { cn += byDay[d][0]; cs += byDay[d][1]; out.push({ date: d, platform: 'iOS', score: r3(cs / cn) }); });
     }
-    if (countries.length <= 1 && !(countries.length && build)) {
-      if (!countries.length && !build) {
-        var pn = 0, ps = 0;
-        D.playOverall.filter(inRange).sort(byDate).forEach(function (r) {
-          if (D.playCumulative) { out.push({ date: r.date, platform: 'Google Play', score: r3(r.sum) }); return; }
-          pn += r.n; ps += r.sum;
-          out.push({ date: r.date, platform: 'Google Play', score: r3(ps / pn) });
+    if (!countries.length && !build) {
+      var pn = 0, ps = 0;
+      D.playOverall.filter(inRange).sort(byDate).forEach(function (r) {
+        if (D.playCumulative) { out.push({ date: r.date, platform: 'Google Play', score: r3(r.sum) }); return; }
+        pn += r.n; ps += r.sum;
+        out.push({ date: r.date, platform: 'Google Play', score: r3(ps / pn) });
+      });
+    } else if (!(countries.length && build)) {
+      // Google Play reports one country (or one build) at a time, so several countries get one line each
+      if (countries.length) {
+        countries.slice(0, 3).forEach(function (c) {
+          D.playCountry.filter(function (r) { return r.country === c; }).filter(inRange).sort(byDate).forEach(function (r) {
+            out.push({ date: r.date, platform: countries.length > 1 ? 'Google Play · ' + c : 'Google Play', score: r3(r.total) });
+          });
         });
       } else {
-        var src = countries.length
-          ? D.playCountry.filter(function (r) { return r.country === countries[0]; })
-          : D.playBuild.filter(function (r) { return r.build === build; });
-        src.filter(inRange).sort(byDate).forEach(function (r) { out.push({ date: r.date, platform: 'Google Play', score: r3(r.total) }); });
+        D.playBuild.filter(function (r) { return r.build === build; }).filter(inRange).sort(byDate).forEach(function (r) {
+          out.push({ date: r.date, platform: 'Google Play', score: r3(r.total) });
+        });
       }
     }
     return out;
@@ -358,7 +364,7 @@
     row.ios_score = n ? r3(sm / n) : null;
     row.ios_cap = n ? fmtInt(n) + (n === 1 ? ' written review' : ' written reviews') : 'No reviews in this selection';
     if (countries.length > 1) {
-      row.play_cap = 'Google Play reports one country at a time';
+      row.play_cap = 'Google Play can’t combine countries; the chart shows one line per country';
     } else if (countries.length && build) {
       row.play_cap = 'Not reported by country and build together';
     } else if (!countries.length && !build) {
@@ -654,8 +660,13 @@
       .map(function (r) { return { d: parseYmd(r.date), platform: r.platform, score: r.score }; })
       .filter(function (r) { return r.d && r.score != null; });
     if (!data.length) { emptyMsg(el, 'No ratings in this selection.'); return; }
-    var series = [['iOS', SERIES[0]], ['Google Play', SERIES[1]]].map(function (p) {
-      return { name: p[0], color: p[1], pts: data.filter(function (r) { return r.platform === p[0]; }).sort(function (a, b) { return a.d - b.d; }) };
+    var names = [];
+    data.forEach(function (r) { if (names.indexOf(r.platform) < 0) names.push(r.platform); });
+    names.sort(function (a, b) { return (a === 'iOS' ? 0 : 1) - (b === 'iOS' ? 0 : 1); });
+    var playColors = [SERIES[1], '#d9b341', '#b8703a'], pi = 0;
+    var series = names.map(function (n) {
+      return { name: n, color: n === 'iOS' ? SERIES[0] : playColors[pi++ % playColors.length],
+        pts: data.filter(function (r) { return r.platform === n; }).sort(function (a, b) { return a.d - b.d; }) };
     }).filter(function (s) { return s.pts.length; });
 
     var W = Math.max(280, el.clientWidth), H = 340, m = { t: 12, r: 18, b: 28, l: 40 };
