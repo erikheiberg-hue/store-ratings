@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>UnGodly ratings</title>
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #faf9f7;
+    --panel: #ffffff;
+    --fg: #1d1c1a;
+    --fg-muted: #6b6860;
+    --border: #dcd9d2;
+    --ok: #1a7f4b;
+    --bad: #c0392b;
+    --series-1: #2f6fd6;
+    --series-2: #d9731a;
+    --chart-axis: #a9a59b;
+    --chart-grid: #e8e5de;
+    --chart-ref: #8a867c;
+    --popover: #ffffff;
+    --shadow-popover: 0 6px 20px rgba(0, 0, 0, 0.14);
+    --radius: 8px;
+    --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --font-serif: ui-serif, Georgia, "Times New Roman", serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --bg: #181715;
+      --panel: #232220;
+      --fg: #f1efea;
+      --fg-muted: #a7a399;
+      --border: #3a3834;
+      --ok: #4cc38a;
+      --bad: #ff7b72;
+      --series-1: #6ea2ff;
+      --series-2: #f0a24f;
+      --chart-axis: #6b675f;
+      --chart-grid: #34322e;
+      --chart-ref: #8f8b82;
+      --popover: #2b2a27;
+      --shadow-popover: 0 6px 20px rgba(0, 0, 0, 0.5);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font-sans); font-size: 14px; line-height: 1.4; overflow-x: hidden; }
+  :focus-visible { outline: 2px solid var(--fg); outline-offset: 2px; }
+
+  .rt { display: flex; flex-direction: column; gap: 24px; max-width: 1100px; margin: 0 auto; padding: 24px 16px 32px; color: var(--fg); }
+  .rt h1 { font-family: var(--font-serif); font-weight: 400; font-size: 34px; line-height: 1.1; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+  .rt h2 { font-size: 14px; font-weight: 500; margin: 0; color: var(--fg); }
+  .rt-error { margin: 0; padding: 12px 14px; border: 1px solid var(--bad); border-radius: var(--radius); color: var(--bad); background: var(--panel); }
+  .rt-error[hidden] { display: none; }
+  .rt-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+  .rt-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; max-width: 100%; }
+  .rt-field label { font-size: 12px; color: var(--fg-muted); }
+  .rt-field select, .rt-field input[type="date"] { min-width: 150px; max-width: 100%; height: 34px; padding: 0 10px; font: inherit; font-size: 14px; color: var(--fg); background-color: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+  .rt-combo { position: relative; min-width: 220px; max-width: 100%; }
+  .rt-combo-btn { width: 100%; height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 10px; font: inherit; font-size: 14px; color: var(--fg); background-color: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; text-align: left; }
+  .rt-combo-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rt-combo-btn::after { content: ""; flex: none; width: 6px; height: 6px; border-right: 1.5px solid var(--fg-muted); border-bottom: 1.5px solid var(--fg-muted); transform: translateY(-2px) rotate(45deg); }
+  .rt-combo-panel { position: absolute; z-index: 5; top: calc(100% + 4px); left: 0; width: max(100%, 280px); max-width: calc(100vw - 32px); background: var(--popover); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-popover); padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+  .rt-combo-panel[hidden] { display: none; }
+  .rt-combo-head { display: flex; gap: 8px; align-items: center; }
+  .rt-combo-head input { flex: 1; min-width: 0; height: 32px; padding: 0 10px; font: inherit; font-size: 14px; color: var(--fg); background-color: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+  .rt-combo-clear { height: 32px; padding: 0 10px; font: inherit; font-size: 12px; color: var(--fg-muted); background: transparent; border: 0; cursor: pointer; text-decoration: underline; }
+  .rt-combo-list { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; }
+  .rt-opt { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 4px; font-size: 14px; cursor: pointer; }
+  .rt-opt:hover { background: var(--bg); }
+  .rt-opt input[type="checkbox"] { flex: none; width: 16px; height: 16px; min-width: 0; margin: 0; padding: 0; accent-color: var(--fg); }
+  .rt-opt span { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rt-opt[hidden] { display: none; }
+  .rt-none { padding: 8px 6px; color: var(--fg-muted); font-size: 12px; }
+  .rt-none[hidden] { display: none; }
+  .rt-sub { margin: 0; font-size: 14px; color: var(--fg-muted); }
+  .rt-sub b { color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .rt-note { margin: 0; font-size: 12px; color: var(--fg-muted); }
+  .rt-note[hidden] { display: none; }
+  .rt-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .rt-chip { height: 34px; min-width: 46px; padding: 0 10px; font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--fg-muted); background: transparent; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+  .rt-chip[aria-pressed="true"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
+  .rt-issues { min-height: 200px; }
+  .rt-issues svg text { font-family: var(--font-sans); font-size: 13px; }
+  .rt-reset { height: 34px; padding: 0 12px; font: inherit; font-size: 14px; color: var(--fg); background: transparent; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
+  .rt-reset:hover { background: var(--panel); }
+  .rt-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 16px; }
+  .rt-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .rt-card-head { display: flex; align-items: center; gap: 8px; }
+  .rt-swatch { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .rt-score { display: flex; align-items: baseline; gap: 8px; }
+  .rt-score .n { font-family: var(--font-serif); font-weight: 400; font-size: 60px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .rt-score .of { color: var(--fg-muted); font-size: 14px; }
+  .rt-dod { margin: 0; min-height: 1.5em; display: flex; align-items: baseline; gap: 6px; font-size: 14px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--fg-muted); }
+  .rt-dod.up { color: var(--ok); }
+  .rt-dod.down { color: var(--bad); }
+  .rt-dodlab { font-weight: 400; font-size: 12px; color: var(--fg-muted); }
+  .rt-dod.none .rt-dodlab { visibility: hidden; }
+  .rt-cap { margin: 0; min-height: 1.4em; font-size: 12px; color: var(--fg-muted); }
+  .rt-chart-card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  .rt-chart { position: relative; min-height: 380px; min-width: 0; }
+  .rt-legend { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--fg-muted); margin-bottom: 6px; }
+  .rt-legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .rt-legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  .rt-chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .rt-chart .tick text { fill: var(--fg-muted); font-size: 12px; font-family: var(--font-sans); }
+  .rt-chart .domain { stroke: var(--chart-axis); }
+  .rt-chart .tick line { stroke: var(--chart-grid); }
+  .rt-chart .rt-yaxis .domain { display: none; }
+  .rt-tip { position: absolute; pointer-events: none; z-index: 2; padding: 8px 10px; font-size: 12px; line-height: 1.5; color: var(--fg-muted); background: var(--popover); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-popover); white-space: nowrap; }
+  .rt-tip[hidden] { display: none; }
+  .rt-tip b { color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }
+  .rt-empty { display: flex; align-items: center; justify-content: center; min-height: 340px; color: var(--fg-muted); font-size: 14px; text-align: center; }
+  .rt-asof { margin: 0; font-size: 12px; color: var(--fg-muted); }
+  .rt-asof[hidden] { display: none; }
+</style>
+</head>
+<body>
+<main class="rt">
+  <h1>UnGodly ratings</h1>
+
+  <p class="rt-error" id="rt-error" role="alert" hidden></p>
+
+  <section class="rt-filters" aria-label="Filters">
+    <div class="rt-field">
+      <label for="rt-country">Country</label>
+      <div class="rt-combo" id="rt-country-combo"></div>
+    </div>
+    <div class="rt-field">
+      <label for="rt-build">Build</label>
+      <select id="rt-build"></select>
+    </div>
+    <div class="rt-field">
+      <label for="rt-from">From</label>
+      <input id="rt-from" type="date">
+    </div>
+    <div class="rt-field">
+      <label for="rt-to">To</label>
+      <input id="rt-to" type="date">
+    </div>
+    <button id="rt-reset" class="rt-reset" type="button">Reset</button>
+  </section>
+
+  <section class="rt-cards" aria-label="Scores">
+    <article class="rt-card" id="card-ios">
+      <div class="rt-card-head"><span class="rt-swatch" style="background:var(--series-1)"></span><h2>iOS rating score</h2></div>
+      <div class="rt-score"><span class="n" id="ios-score">—</span><span class="of">/ 5</span></div>
+      <p class="rt-dod none" id="ios-dodrow"><span id="ios-arrow"></span><span id="ios-dod"></span><span class="rt-dodlab">vs. prior day</span></p>
+      <p class="rt-cap" id="ios-cap">—</p>
+    </article>
+    <article class="rt-card" id="card-play">
+      <div class="rt-card-head"><span class="rt-swatch" style="background:var(--series-2)"></span><h2>Google Play rating score</h2></div>
+      <div class="rt-score"><span class="n" id="play-score">—</span><span class="of">/ 5</span></div>
+      <p class="rt-dod none" id="play-dodrow"><span id="play-arrow"></span><span id="play-dod"></span><span class="rt-dodlab">vs. prior day</span></p>
+      <p class="rt-cap" id="play-cap">—</p>
+    </article>
+  </section>
+
+  <section class="rt-chart-card" aria-labelledby="rt-chart-h">
+    <h2 id="rt-chart-h">Score over time</h2>
+    <div class="rt-chart" id="rt-chart">—</div>
+    <p class="rt-note" style="margin:0;font-size:12px;color:var(--fg-muted)">iOS is the overall App Store rating, one reading per day. Google Play shows Play’s lifetime average from its report files, which arrive about a week late; the Google Play card is the current “Default Google Play rating”.</p>
+  </section>
+
+  <section class="rt-chart-card" aria-labelledby="rt-issues-h">
+    <h2 id="rt-issues-h">Review issues</h2>
+    <p class="rt-sub"><b id="it-total">—</b> reviews in this selection, <b id="it-issue">—</b> mention at least one issue. A review counts in every bucket it touches.</p>
+    <div class="rt-filters" aria-label="Review issue filters">
+      <div class="rt-field">
+        <label for="ri-platform">Platform</label>
+        <select id="ri-platform"></select>
+      </div>
+      <div class="rt-field">
+        <label for="ri-country">Country</label>
+        <div class="rt-combo" id="ri-country-combo"></div>
+      </div>
+      <div class="rt-field">
+        <label id="ri-stars-l">Review score</label>
+        <div class="rt-chips" role="group" aria-labelledby="ri-stars-l" id="ri-stars"></div>
+      </div>
+      <div class="rt-field">
+        <label for="ri-from">From</label>
+        <input id="ri-from" type="date">
+      </div>
+      <div class="rt-field">
+        <label for="ri-to">To</label>
+        <input id="ri-to" type="date">
+      </div>
+      <button id="ri-reset" class="rt-reset" type="button">Reset</button>
+    </div>
+    <p class="rt-note" id="ri-note" hidden>Google Play reviews don’t include a country, so only App Store reviews are counted while a country is selected.</p>
+    <div class="rt-chart rt-issues" id="rt-issues-chart">—</div>
+  </section>
+
+  <p class="rt-asof" id="rt-asof" hidden></p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  // ---------- constants & helpers ----------
+  var DEFAULT_FROM = '2026-11-10';
+  var SERIES = ['var(--series-1)', 'var(--series-2)']; // [iOS, Google Play]
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  var r3 = function (x) { return Math.round(x * 1000) / 1000; };
+  var byDate = function (a, b) { return a.date < b.date ? -1 : 1; };
+  var toArr = function (v) { return Array.isArray(v) ? v : v ? [v] : []; };
+  var fmtInt = function (n) { return n.toLocaleString('en-US'); };
+  // 'YYYY-MM-DD' -> Date at UTC midnight (null if invalid)
+  function parseYmd(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+    if (!m) return null;
+    var d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    return isNaN(d) ? null : d;
+  }
+  // Date (UTC) -> 'Nov 10, 2026'
+  function longDate(d) { return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear(); }
+
+  function regionLabeler() {
+    var names = null;
+    try { names = new Intl.DisplayNames(['en'], { type: 'region' }); } catch (e) { /* fall back to codes */ }
+    return function (c) { try { return (names && names.of(c)) || c; } catch (e) { return c; } };
+  }
+
+  // ---------- state ----------
+  function defaultState() {
+    return {
+      // scores + chart section
+      country: [], build: '', from: DEFAULT_FROM, to: null,
+      // review issues section
+      ri_platform: '', ri_country: [], ri_stars: [], ri_from: DEFAULT_FROM, ri_to: null
+    };
+  }
+  var state = defaultState();
+
+  // ---------- data preparation (ratings.json -> row objects) ----------
+  function prepare(a) {
+    return {
+      headline: a.headline,
+      iosReviews: a.ios.map(function (r) { return { date: r[0], country: r[1], build: r[2], n: r[3], sum: r[4] }; }),
+      iosHistory: a.ih.map(function (r) { return { date: r[0], score: r[1] }; }),
+      reviewIssues: a.ii.map(function (r) { return { date: r[0], platform: r[1], country: r[2], stars: r[3], bucket: r[4], n: r[5] }; }),
+      issueBuckets: a.ib.map(function (r) { return { id: r[0], name: r[1] }; }),
+      playHistory: a.ph.map(function (r) { return { date: r[0], score: r[1] }; }),
+      playOverall: a.po.map(function (r) { return { date: r[0], n: r[1], sum: r[2] }; }),
+      playCumulative: a.po_mode === 'cumulative',
+      playCountry: a.pc.map(function (r) { return { date: r[0], country: r[1], total: r[2] }; }),
+      playBuild: a.pb.map(function (r) { return { date: r[0], build: r[1], total: r[2] }; })
+    };
+  }
+
+  // ---------- pure calcs ----------
+  // First and last day with ratings data on either store.
+  function computeBounds(D) {
+    var days = D.iosReviews.map(function (r) { return r.date; })
+      .concat(D.playOverall.map(function (r) { return r.date; }), D.iosHistory.map(function (r) { return r.date; })).sort();
+    return { min: days[0], max: days[days.length - 1] };
+  }
+
+  // Countries and builds that appear on either store.
+  function computeOptions(D) {
+    var label = regionLabeler();
+    var countries = new Set(), builds = new Set();
+    D.iosReviews.forEach(function (r) { countries.add(r.country); builds.add(r.build); });
+    D.playCountry.forEach(function (r) { countries.add(r.country); });
+    D.playBuild.forEach(function (r) { builds.add(r.build); });
+    var newest = function (a, b) {
+      var x = a.split('.').map(Number), y = b.split('.').map(Number);
+      for (var i = 0; i < 3; i++) { var d = (y[i] || 0) - (x[i] || 0); if (d) return d; }
+      return 0;
+    };
+    return {
+      countries: Array.from(countries).map(function (c) { return { value: c, label: label(c) }; })
+        .sort(function (a, b) { return a.label.localeCompare(b.label); }),
+      builds: Array.from(builds).filter(function (b) { return Number(b.split('.')[0]) >= 1; }).sort(newest)
+        .map(function (b) { return { value: b, label: b }; })
+    };
+  }
+
+  // iOS: overall App Store rating, one reading per day (only with no country/build).
+  // Google Play: running average from start of range; with one country or one build,
+  // the cumulative average rating from Play Console.
+  function computeSeries(D, s) {
+    var countries = toArr(s.country);
+    var build = s.build || '';
+    var all = D.iosHistory.map(function (r) { return r.date; }).concat(D.playOverall.map(function (r) { return r.date; })).sort();
+    var from = s.from || all[0], to = s.to || all[all.length - 1];
+    var inRange = function (r) { return r.date >= from && r.date <= to; };
+    var out = [];
+    if (!countries.length && !build) {
+      D.iosHistory.filter(inRange).sort(byDate).forEach(function (r) { out.push({ date: r.date, platform: 'iOS', score: r3(r.score) }); });
+    }
+    if (countries.length <= 1 && !(countries.length && build)) {
+      if (!countries.length && !build) {
+        var pn = 0, ps = 0;
+        D.playOverall.filter(inRange).sort(byDate).forEach(function (r) {
+          if (D.playCumulative) { out.push({ date: r.date, platform: 'Google Play', score: r3(r.sum) }); return; }
+          pn += r.n; ps += r.sum;
+          out.push({ date: r.date, platform: 'Google Play', score: r3(ps / pn) });
+        });
+      } else {
+        var src = countries.length
+          ? D.playCountry.filter(function (r) { return r.country === countries[0]; })
+          : D.playBuild.filter(function (r) { return r.build === build; });
+        src.filter(inRange).sort(byDate).forEach(function (r) { out.push({ date: r.date, platform: 'Google Play', score: r3(r.total) }); });
+      }
+    }
+    return out;
+  }
+
+  // Scores for the current selection (headline when "plain", else filtered averages).
+  function computeScores(D, s) {
+    var countries = toArr(s.country);
+    var build = s.build || '';
+    var all = D.iosReviews.map(function (r) { return r.date; }).concat(D.playOverall.map(function (r) { return r.date; })).sort();
+    var max = all[all.length - 1];
+    var from = s.from || all[0], to = s.to || max;
+    var plain = !countries.length && !build && from <= '2026-11-10' && to >= max;
+    var h = function (k) { return D.headline.find(function (r) { return r.platform === k; }); };
+    var row = { ios_score: null, ios_cap: '', play_score: null, play_cap: '', ios_dod: '', ios_dir: '', play_dod: '', play_dir: '' };
+    var dayChange = function (history) {
+      var rs = history.slice().sort(byDate);
+      if (rs.length < 2) return ['', ''];
+      var now = rs[rs.length - 1].score, before = rs[rs.length - 2].score;
+      var pct = (now - before) / before * 100;
+      var flat = Math.abs(pct) < 0.005;
+      return [(flat ? '' : pct > 0 ? '+' : '−') + Math.abs(pct).toFixed(2) + '%', flat ? 'flat' : pct > 0 ? 'up' : 'down'];
+    };
+    var dc;
+    if (plain) {
+      dc = dayChange(D.iosHistory); row.ios_dod = dc[0]; row.ios_dir = dc[1];
+      dc = dayChange(D.playHistory); row.play_dod = dc[0]; row.play_dir = dc[1];
+      row.ios_score = h('ios').score;
+      row.ios_cap = fmtInt(h('ios').ratings) + ' ratings';
+      row.play_score = h('play').score;
+      row.play_cap = fmtInt(h('play').ratings) + ' ratings';
+      return row;
+    }
+    var n = 0, sm = 0;
+    D.iosReviews.filter(function (r) {
+      return (!countries.length || countries.indexOf(r.country) >= 0) && (!build || r.build === build) && r.date >= from && r.date <= to;
+    }).forEach(function (r) { n += r.n; sm += r.sum; });
+    row.ios_score = n ? r3(sm / n) : null;
+    row.ios_cap = n ? fmtInt(n) + (n === 1 ? ' written review' : ' written reviews') : 'No reviews in this selection';
+    if (countries.length > 1) {
+      row.play_cap = 'Google Play reports one country at a time';
+    } else if (countries.length && build) {
+      row.play_cap = 'Not reported by country and build together';
+    } else if (!countries.length && !build) {
+      var pn = 0, ps = 0;
+      var inRangePlay = D.playOverall.filter(function (r) { return r.date >= from && r.date <= to; }).sort(byDate);
+      if (D.playCumulative) {
+        var lastPo = inRangePlay[inRangePlay.length - 1];
+        row.play_score = lastPo ? r3(lastPo.sum) : null;
+        row.play_cap = lastPo ? 'Lifetime average as of ' + longDate(parseYmd(lastPo.date)) : 'No Play data in this selection';
+      } else {
+        inRangePlay.forEach(function (r) { pn += r.n; ps += r.sum; });
+        row.play_score = pn ? r3(ps / pn) : null;
+        row.play_cap = pn ? fmtInt(pn) + ' ratings' : 'No Play ratings in this selection';
+      }
+    } else {
+      var src = countries.length
+        ? D.playCountry.filter(function (r) { return r.country === countries[0]; })
+        : D.playBuild.filter(function (r) { return r.build === build; });
+      var inR = src.filter(function (r) { return r.date >= from && r.date <= to; }).sort(byDate);
+      var last = inR[inR.length - 1];
+      row.play_score = last ? r3(last.total) : null;
+      row.play_cap = last ? 'Cumulative as of ' + longDate(parseYmd(last.date)) : 'No Play data in this selection';
+    }
+    return row;
+  }
+
+  // First and last day with a written review on either store.
+  function computeIssueBounds(D) {
+    var days = D.reviewIssues.filter(function (r) { return r.bucket === 'all'; }).map(function (r) { return r.date; }).sort();
+    return { min: days[0], max: days[days.length - 1] };
+  }
+
+  // Countries with at least one App Store review (Google Play reviews carry no country).
+  function computeIssueCountries(D) {
+    var label = regionLabeler();
+    var set = new Set(D.reviewIssues.filter(function (r) { return r.platform === 'ios' && r.country; }).map(function (r) { return r.country; }));
+    return Array.from(set).map(function (c) { return { value: c, label: label(c) }; })
+      .sort(function (a, b) { return a.label.localeCompare(b.label); });
+  }
+
+  function issueFilter(s) {
+    var platform = s.ri_platform || '';
+    var countries = toArr(s.ri_country);
+    var stars = toArr(s.ri_stars).length ? toArr(s.ri_stars).map(Number) : [1, 2, 3, 4, 5];
+    var from = s.ri_from || '0000-00-00', to = s.ri_to || '9999-99-99';
+    return function (r) {
+      return !((platform && r.platform !== platform) ||
+        (countries.length && (r.platform !== 'ios' || countries.indexOf(r.country) < 0)) ||
+        stars.indexOf(r.stars) < 0 || r.date < from || r.date > to);
+    };
+  }
+
+  // Written reviews per issue bucket, counted once in every bucket they mention.
+  function computeIssues(D, s) {
+    var keep = issueFilter(s);
+    var by = {};
+    D.reviewIssues.forEach(function (r) {
+      if (!keep(r)) return;
+      by[r.bucket] = by[r.bucket] || { ios: 0, play: 0 };
+      by[r.bucket][r.platform] += r.n;
+    });
+    var total = by.all ? by.all.ios + by.all.play : 0;
+    var names = new Map(D.issueBuckets.map(function (b) { return [b.id, b.name]; }));
+    return Object.keys(by).filter(function (k) { return k !== 'all' && k !== 'none'; })
+      .map(function (k) {
+        return { bucket: names.get(k) || k, ios: by[k].ios, play: by[k].play, reviews: by[k].ios + by[k].play,
+          share: Math.round((by[k].ios + by[k].play) / total * 1000) / 10 };
+      })
+      .sort(function (a, b) { return b.reviews - a.reviews; });
+  }
+
+  // Total written reviews in the selection, and how many mention at least one issue.
+  function computeIssueTotals(D, s) {
+    var keep = issueFilter(s);
+    var total = 0, none = 0;
+    D.reviewIssues.forEach(function (r) {
+      if (!keep(r)) return;
+      if (r.bucket === 'all') total += r.n;
+      if (r.bucket === 'none') none += r.n;
+    });
+    return { total: total, with_issue: total - none, none: none };
+  }
+
+  var api = {
+    defaultState: defaultState, prepare: prepare, computeBounds: computeBounds, computeOptions: computeOptions,
+    computeSeries: computeSeries, computeScores: computeScores, computeIssueBounds: computeIssueBounds,
+    computeIssueCountries: computeIssueCountries, computeIssues: computeIssues, computeIssueTotals: computeIssueTotals
+  };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  if (typeof document === 'undefined' || typeof window === 'undefined') return;
+
+  // ---------- browser side ----------
+  var $ = function (id) { return document.getElementById(id); };
+  var D = null, opts = null, bounds = null, issueBounds = null, issueCountries = null;
+  var combos = [];
+
+  function showError(msg) {
+    var el = $('rt-error');
+    el.textContent = msg;
+    el.hidden = false;
+  }
+
+  // Multi-select combo with search; selection lives in state[key].
+  function makeCombo(host, id, key, getRows) {
+    var btn = document.createElement('button');
+    btn.type = 'button'; btn.id = id; btn.className = 'rt-combo-btn';
+    btn.setAttribute('aria-haspopup', 'listbox'); btn.setAttribute('aria-expanded', 'false');
+    var label = document.createElement('span');
+    btn.append(label);
+    var panel = document.createElement('div');
+    panel.className = 'rt-combo-panel'; panel.hidden = true;
+    var head = document.createElement('div');
+    head.className = 'rt-combo-head';
+    var search = document.createElement('input');
+    search.type = 'search'; search.placeholder = 'Search countries'; search.autocomplete = 'off';
+    search.setAttribute('aria-label', 'Search countries');
+    var clear = document.createElement('button');
+    clear.type = 'button'; clear.className = 'rt-combo-clear'; clear.textContent = 'Clear';
+    head.append(search, clear);
+    var list = document.createElement('div');
+    list.className = 'rt-combo-list'; list.setAttribute('role', 'group'); list.setAttribute('aria-label', 'Countries');
+    panel.append(head, list);
+    host.append(btn, panel);
+
+    var names = new Map(), built = -1;
+    var open = function (v) {
+      panel.hidden = !v;
+      btn.setAttribute('aria-expanded', String(v));
+      if (v) search.focus();
+    };
+    btn.onclick = function () { open(panel.hidden); };
+    clear.onclick = function () { state[key] = []; render(); };
+    search.oninput = function () {
+      var q = search.value.trim().toLowerCase();
+      var shown = 0;
+      list.querySelectorAll('.rt-opt').forEach(function (o) {
+        var hit = !q || o.dataset.name.indexOf(q) >= 0;
+        o.hidden = !hit;
+        if (hit) shown++;
+      });
+      list.querySelectorAll('.rt-none').forEach(function (n) { n.hidden = shown > 0; });
+    };
+    list.onchange = function () {
+      state[key] = Array.prototype.map.call(list.querySelectorAll('input:checked'), function (i) { return i.value; });
+      render();
+    };
+    document.addEventListener('pointerdown', function (e) { if (!host.contains(e.target)) open(false); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !panel.hidden) { open(false); btn.focus(); }
+    });
+
+    return {
+      update: function () {
+        var rows = getRows();
+        if (rows.length !== built) {
+          built = rows.length;
+          names = new Map(rows.map(function (r) { return [r.value, r.label]; }));
+          var items = rows.map(function (r) {
+            var lab = document.createElement('label');
+            lab.className = 'rt-opt'; lab.dataset.name = r.label.toLowerCase();
+            var cb = document.createElement('input');
+            cb.type = 'checkbox'; cb.value = r.value;
+            var t = document.createElement('span');
+            t.textContent = r.label;
+            lab.append(cb, t);
+            return lab;
+          });
+          var none = document.createElement('div');
+          none.className = 'rt-none'; none.hidden = true; none.textContent = 'No matching country';
+          list.replaceChildren.apply(list, items.concat([none]));
+        }
+        var picked = toArr(state[key]);
+        list.querySelectorAll('input').forEach(function (cb) { cb.checked = picked.indexOf(cb.value) >= 0; });
+        var nm = function (c) { return names.get(c) || c; };
+        label.textContent = !picked.length ? 'All countries' : picked.length <= 2 ? picked.map(nm).join(', ') : picked.length + ' countries';
+      }
+    };
+  }
+
+  // Date input bound to state[key]; shows the data bound when the state is empty.
+  function bindDate(el, key, getBound, isFrom) {
+    var shown = function () { var b = getBound(); return state[key] || (b ? (isFrom ? b.min : b.max) : ''); };
+    el.onchange = function () {
+      if (el.value && el.validity.valid) state[key] = el.value;
+      else if (!el.value) state[key] = null;
+      render();
+    };
+    el.onblur = function () { el.value = shown(); };
+    return function () {
+      var b = getBound();
+      if (b) { el.min = b.min; el.max = b.max; }
+      if (document.activeElement !== el) el.value = shown();
+    };
+  }
+
+  var syncers = [];
+  function buildControls() {
+    combos.push(makeCombo($('rt-country-combo'), 'rt-country', 'country', function () { return opts.countries; }));
+    combos.push(makeCombo($('ri-country-combo'), 'ri-country', 'ri_country', function () { return issueCountries; }));
+
+    var build = $('rt-build');
+    build.replaceChildren.apply(build, [new Option('All builds', '')].concat(opts.builds.map(function (r) { return new Option(r.label, r.value); })));
+    build.onchange = function () { state.build = build.value || ''; render(); };
+    syncers.push(function () { build.value = state.build || ''; });
+
+    syncers.push(bindDate($('rt-from'), 'from', function () { return bounds; }, true));
+    syncers.push(bindDate($('rt-to'), 'to', function () { return bounds; }, false));
+    $('rt-reset').addEventListener('click', function () {
+      var d = defaultState();
+      ['country', 'build', 'from', 'to'].forEach(function (k) { state[k] = d[k]; });
+      render();
+    });
+
+    var plat = $('ri-platform');
+    plat.replaceChildren(new Option('All platforms', ''), new Option('iOS', 'ios'), new Option('Google Play', 'play'));
+    plat.onchange = function () { state.ri_platform = plat.value || ''; render(); };
+    syncers.push(function () { plat.value = state.ri_platform || ''; });
+
+    var current = function () { var s = toArr(state.ri_stars); return s.length ? s.map(Number) : [1, 2, 3, 4, 5]; };
+    var chips = [1, 2, 3, 4, 5].map(function (n) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'rt-chip'; b.dataset.n = n; b.textContent = n + ' ★';
+      b.setAttribute('aria-label', n + (n === 1 ? ' star' : ' stars'));
+      b.onclick = function () {
+        var cur = current();
+        var next = cur.length === 5 ? [n] : cur.indexOf(n) >= 0 ? cur.filter(function (x) { return x !== n; }) : cur.concat([n]).sort();
+        if (next.length === 0 || next.length === 5) next = [];
+        state.ri_stars = next;
+        render();
+      };
+      return b;
+    });
+    $('ri-stars').append.apply($('ri-stars'), chips);
+    syncers.push(function () {
+      var on = current();
+      chips.forEach(function (b) { b.setAttribute('aria-pressed', String(on.length < 5 && on.indexOf(Number(b.dataset.n)) >= 0)); });
+    });
+
+    syncers.push(bindDate($('ri-from'), 'ri_from', function () { return issueBounds; }, true));
+    syncers.push(bindDate($('ri-to'), 'ri_to', function () { return issueBounds; }, false));
+    $('ri-reset').addEventListener('click', function () {
+      var d = defaultState();
+      ['ri_platform', 'ri_country', 'ri_stars', 'ri_from', 'ri_to'].forEach(function (k) { state[k] = d[k]; });
+      render();
+    });
+  }
+
+  function syncControls() {
+    combos.forEach(function (c) { c.update(); });
+    syncers.forEach(function (f) { f(); });
+    $('ri-note').hidden = !toArr(state.ri_country).length;
+  }
+
+  // ---------- render functions ----------
+  function renderCards() {
+    var sc = computeScores(D, state);
+    ['ios', 'play'].forEach(function (k) {
+      var v = sc[k + '_score'];
+      $(k + '-score').textContent = v == null ? '—' : v.toFixed(3);
+      $(k + '-cap').textContent = sc[k + '_cap'] || '—';
+      var dir = sc[k + '_dir'];
+      $(k + '-arrow').textContent = { up: '▲', down: '▼', flat: '–' }[dir] || '';
+      $(k + '-dod').textContent = sc[k + '_dod'] || '';
+      $(k + '-dodrow').className = 'rt-dod ' + (dir || 'none');
+    });
+  }
+
+  function emptyMsg(el, text) {
+    var e = document.createElement('div');
+    e.className = 'rt-empty';
+    e.textContent = text;
+    el.replaceChildren(e);
+  }
+
+  function legendEl(items) {
+    var legend = document.createElement('div');
+    legend.className = 'rt-legend';
+    items.forEach(function (it) {
+      var item = document.createElement('span');
+      var sw = document.createElement('i');
+      sw.style.background = it.color;
+      item.append(sw, it.name);
+      legend.append(item);
+    });
+    return legend;
+  }
+
+  function dotCss(color) { return 'display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;background:' + color; }
+
+  function renderChart() {
+    var el = $('rt-chart');
+    var data = computeSeries(D, state)
+      .map(function (r) { return { d: parseYmd(r.date), platform: r.platform, score: r.score }; })
+      .filter(function (r) { return r.d && r.score != null; });
+    if (!data.length) { emptyMsg(el, 'No ratings in this selection.'); return; }
+    var series = [['iOS', SERIES[0]], ['Google Play', SERIES[1]]].map(function (p) {
+      return { name: p[0], color: p[1], pts: data.filter(function (r) { return r.platform === p[0]; }).sort(function (a, b) { return a.d - b.d; }) };
+    }).filter(function (s) { return s.pts.length; });
+
+    var W = Math.max(280, el.clientWidth), H = 340, m = { t: 12, r: 18, b: 28, l: 40 };
+    var iw = W - m.l - m.r, ih = H - m.t - m.b;
+    var ext = d3.extent(data, function (r) { return r.d; });
+    var x0 = ext[0], x1 = ext[1];
+    if (+x0 === +x1) { x0 = d3.utcDay.offset(x0, -1); x1 = d3.utcDay.offset(x1, 1); }
+    var x = d3.scaleUtc().domain([x0, x1]).range([0, iw]);
+    var lo = d3.min(data, function (r) { return r.score; });
+    var y = d3.scaleLinear().domain([Math.max(1, Math.floor((lo - 0.25) * 2) / 2), 5]).range([ih, 0]);
+    var spanDays = (x1 - x0) / 864e5;
+
+    var legend = legendEl(series);
+    var svg = d3.create('svg').attr('viewBox', '0 0 ' + W + ' ' + H).attr('role', 'img')
+      .attr('aria-label', 'Line chart of score over time for ' + series.map(function (s) { return s.name; }).join(' and '));
+    var gg = svg.append('g').attr('transform', 'translate(' + m.l + ',' + m.t + ')');
+    gg.append('g').attr('class', 'rt-yaxis').call(d3.axisLeft(y).ticks(5).tickSize(-iw).tickPadding(8).tickFormat(d3.format('.1f')));
+    gg.append('g').attr('transform', 'translate(0,' + ih + ')')
+      .call(d3.axisBottom(x).ticks(W < 520 ? 4 : 7).tickSizeOuter(0).tickPadding(8).tickFormat(d3.utcFormat(spanDays > 150 ? '%b %Y' : '%b %-d')));
+    var line = d3.line().x(function (r) { return x(r.d); }).y(function (r) { return y(r.score); });
+    series.forEach(function (s) {
+      gg.append('path').datum(s.pts).attr('fill', 'none').attr('stroke-width', 2).attr('stroke-linejoin', 'round')
+        .style('stroke', s.color).attr('d', line);
+      if (s.pts.length <= 60) {
+        gg.append('g').selectAll('circle').data(s.pts).join('circle').attr('r', 2.5)
+          .attr('cx', function (r) { return x(r.d); }).attr('cy', function (r) { return y(r.score); }).style('fill', s.color);
+      }
+      var last = s.pts[s.pts.length - 1];
+      gg.append('circle').attr('r', 4.5).attr('cx', x(last.d)).attr('cy', y(last.score)).style('fill', s.color)
+        .style('stroke', 'var(--panel)').attr('stroke-width', 2);
+    });
+
+    var tip = document.createElement('div');
+    tip.className = 'rt-tip';
+    tip.hidden = true;
+    var hover = gg.append('line').attr('y1', 0).attr('y2', ih).attr('stroke-width', 1).style('stroke', 'var(--chart-ref)').attr('visibility', 'hidden');
+    var bis = d3.bisector(function (r) { return r.d; }).center;
+    gg.append('rect').attr('width', iw).attr('height', ih).attr('fill', 'transparent')
+      .on('pointermove', function (event) {
+        var when = x.invert(d3.pointer(event)[0]);
+        var hits = series.map(function (s) { return { s: s, p: s.pts[bis(s.pts, when)] }; });
+        var near = hits.reduce(function (a, b) { return Math.abs(a.p.d - when) <= Math.abs(b.p.d - when) ? a : b; });
+        hover.attr('x1', x(near.p.d)).attr('x2', x(near.p.d)).attr('visibility', 'visible');
+        tip.replaceChildren();
+        var head = document.createElement('div');
+        head.textContent = longDate(near.p.d);
+        tip.append(head);
+        hits.forEach(function (h) {
+          var row = document.createElement('div');
+          var sw = document.createElement('i');
+          sw.style.cssText = dotCss(h.s.color);
+          var v = document.createElement('b');
+          v.textContent = h.p.score.toFixed(3);
+          row.append(sw, h.s.name + ' ', v);
+          if (+h.p.d !== +near.p.d) row.append(' · ' + longDate(h.p.d));
+          tip.append(row);
+        });
+        tip.hidden = false;
+        var box = el.getBoundingClientRect();
+        var left = Math.min(Math.max(8, m.l + x(near.p.d) + 12), Math.max(8, box.width - tip.offsetWidth - 8));
+        tip.style.left = left + 'px';
+        tip.style.top = Math.max(8, m.t + 40) + 'px';
+      })
+      .on('pointerleave', function () { tip.hidden = true; hover.attr('visibility', 'hidden'); });
+
+    el.replaceChildren(legend, svg.node(), tip);
+  }
+
+  function renderIssues() {
+    var t = computeIssueTotals(D, state);
+    $('it-total').textContent = fmtInt(t.total);
+    $('it-issue').textContent = fmtInt(t.with_issue);
+
+    var el = $('rt-issues-chart');
+    var rows = computeIssues(D, state);
+    if (!rows.length) { emptyMsg(el, 'No reviews mention an issue in this selection.'); return; }
+    var W = Math.max(280, el.clientWidth), rowH = 52, H = rows.length * rowH;
+    var x = d3.scaleLinear().domain([0, d3.max(rows, function (r) { return r.reviews; })]).range([0, W]);
+    var plats = [['iOS', 'ios', SERIES[0]], ['Google Play', 'play', SERIES[1]]]
+      .filter(function (p) { return rows.some(function (r) { return r[p[1]] > 0; }); });
+
+    var legend = legendEl(plats.map(function (p) { return { name: p[0], color: p[2] }; }));
+    var svg = d3.create('svg').attr('viewBox', '0 0 ' + W + ' ' + H).attr('role', 'img')
+      .attr('aria-label', 'Bar chart of reviews per issue bucket, largest first: ' + rows.map(function (r) { return r.bucket + ' ' + r.reviews; }).join(', '));
+    var tip = document.createElement('div');
+    tip.className = 'rt-tip';
+    tip.hidden = true;
+    rows.forEach(function (r, i) {
+      var yy = i * rowH;
+      svg.append('text').attr('x', 0).attr('y', yy + 16).style('fill', 'var(--fg)').text(r.bucket);
+      svg.append('text').attr('x', W).attr('y', yy + 16).attr('text-anchor', 'end').style('fill', 'var(--fg-muted)')
+        .text(fmtInt(r.reviews) + ' · ' + r.share.toFixed(1) + '%');
+      var xs = 0;
+      plats.forEach(function (p) {
+        var w = x(r[p[1]]);
+        if (w > 0) svg.append('rect').attr('x', xs).attr('y', yy + 24).attr('width', w).attr('height', 16).attr('rx', 2).style('fill', p[2]);
+        xs += w;
+      });
+      svg.append('rect').attr('x', 0).attr('y', yy).attr('width', W).attr('height', rowH).attr('fill', 'transparent')
+        .on('pointermove', function (event) {
+          tip.replaceChildren();
+          var head = document.createElement('div');
+          head.textContent = r.bucket;
+          tip.append(head);
+          plats.forEach(function (p) {
+            var row = document.createElement('div');
+            var sw = document.createElement('i');
+            sw.style.cssText = dotCss(p[2]);
+            var v = document.createElement('b');
+            v.textContent = fmtInt(r[p[1]]);
+            row.append(sw, p[0] + ' ', v);
+            tip.append(row);
+          });
+          tip.hidden = false;
+          var pt = d3.pointer(event, el);
+          tip.style.left = Math.min(Math.max(8, pt[0] + 12), Math.max(8, el.clientWidth - tip.offsetWidth - 8)) + 'px';
+          tip.style.top = Math.max(8, pt[1] + 12) + 'px';
+        })
+        .on('pointerleave', function () { tip.hidden = true; });
+    });
+    el.replaceChildren(legend, svg.node(), tip);
+  }
+
+  function render() {
+    if (!D) return;
+    syncControls();
+    renderCards();
+    renderChart();
+    renderIssues();
+  }
+
+  function renderAsOf(generated) {
+    var el = $('rt-asof');
+    if (!generated) return;
+    var d = parseYmd(String(generated).slice(0, 10));
+    el.textContent = 'Data as of ' + (d ? longDate(d) : generated);
+    el.hidden = false;
+  }
+
+  // ---------- boot ----------
+  function boot() {
+    if (typeof d3 === 'undefined') {
+      showError('Couldn’t load the charting library (d3) from cdnjs.cloudflare.com. Check your connection and reload.');
+      return;
+    }
+    fetch('ratings.json', { cache: 'no-cache' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.json();
+      })
+      .then(function (json) {
+        D = prepare(json);
+        opts = computeOptions(D);
+        bounds = computeBounds(D);
+        issueBounds = computeIssueBounds(D);
+        issueCountries = computeIssueCountries(D);
+        buildControls();
+        render();
+        renderAsOf(json.generated);
+        var timer = 0;
+        window.addEventListener('resize', function () {
+          cancelAnimationFrame(timer);
+          timer = requestAnimationFrame(function () { renderChart(); renderIssues(); });
+        });
+      })
+      .catch(function (err) {
+        showError('Couldn’t load ratings.json (' + (err && err.message ? err.message : err) + '). Serve this folder over http (for example "python -m http.server") rather than opening the file directly, and make sure ratings.json sits next to index.html.');
+      });
+  }
+  boot();
+})();
+</script>
+</body>
+</html>
