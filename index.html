@@ -72,7 +72,7 @@
   .rt-combo-list { max-height: 260px; overflow-y: auto; display: flex; flex-direction: column; }
   .rt-opt { display: flex; align-items: center; gap: 8px; padding: 6px; border-radius: 4px; font-size: 14px; cursor: pointer; }
   .rt-opt:hover { background: var(--bg); }
-  .rt-opt input[type="checkbox"] { flex: none; width: 16px; height: 16px; min-width: 0; margin: 0; padding: 0; accent-color: var(--fg); }
+  .rt-opt input[type="checkbox"], .rt-opt input[type="radio"] { flex: none; width: 16px; height: 16px; min-width: 0; margin: 0; padding: 0; accent-color: var(--fg); }
   .rt-opt span { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rt-opt[hidden] { display: none; }
   .rt-none { padding: 8px 6px; color: var(--fg-muted); font-size: 12px; }
@@ -469,7 +469,7 @@
     el.hidden = false;
   }
 
-  // Multi-select combo with search; selection lives in state[key].
+  // Single-select country dropdown with search; selection lives in state[key] (empty = all countries).
   function makeCombo(host, id, key, getRows) {
     var btn = document.createElement('button');
     btn.type = 'button'; btn.id = id; btn.className = 'rt-combo-btn';
@@ -483,9 +483,7 @@
     var search = document.createElement('input');
     search.type = 'search'; search.placeholder = 'Search countries'; search.autocomplete = 'off';
     search.setAttribute('aria-label', 'Search countries');
-    var clear = document.createElement('button');
-    clear.type = 'button'; clear.className = 'rt-combo-clear'; clear.textContent = 'Clear';
-    head.append(search, clear);
+    head.append(search);
     var list = document.createElement('div');
     list.className = 'rt-combo-list'; list.setAttribute('role', 'group'); list.setAttribute('aria-label', 'Countries');
     panel.append(head, list);
@@ -498,7 +496,6 @@
       if (v) search.focus();
     };
     btn.onclick = function () { open(panel.hidden); };
-    clear.onclick = function () { state[key] = []; render(); };
     search.oninput = function () {
       var q = search.value.trim().toLowerCase();
       var shown = 0;
@@ -509,8 +506,13 @@
       });
       list.querySelectorAll('.rt-none').forEach(function (n) { n.hidden = shown > 0; });
     };
+    // One country at a time: picking a row selects it alone; "All countries" clears the filter.
     list.onchange = function () {
-      state[key] = Array.prototype.map.call(list.querySelectorAll('input:checked'), function (i) { return i.value; });
+      var c = list.querySelector('input:checked');
+      state[key] = c && c.value ? [c.value] : [];
+      search.value = '';
+      search.oninput();
+      open(false);
       render();
     };
     document.addEventListener('pointerdown', function (e) { if (!host.contains(e.target)) open(false); });
@@ -524,11 +526,11 @@
         if (rows.length !== built) {
           built = rows.length;
           names = new Map(rows.map(function (r) { return [r.value, r.label]; }));
-          var items = rows.map(function (r) {
+          var items = [{ value: '', label: 'All countries' }].concat(rows).map(function (r) {
             var lab = document.createElement('label');
             lab.className = 'rt-opt'; lab.dataset.name = r.label.toLowerCase();
             var cb = document.createElement('input');
-            cb.type = 'checkbox'; cb.value = r.value;
+            cb.type = 'radio'; cb.name = 'combo-' + id; cb.value = r.value;
             var t = document.createElement('span');
             t.textContent = r.label;
             lab.append(cb, t);
@@ -539,9 +541,8 @@
           list.replaceChildren.apply(list, items.concat([none]));
         }
         var picked = toArr(state[key]);
-        list.querySelectorAll('input').forEach(function (cb) { cb.checked = picked.indexOf(cb.value) >= 0; });
-        var nm = function (c) { return names.get(c) || c; };
-        label.textContent = !picked.length ? 'All countries' : picked.length <= 2 ? picked.map(nm).join(', ') : picked.length + ' countries';
+        list.querySelectorAll('input').forEach(function (cb) { cb.checked = picked.length ? cb.value === picked[0] : cb.value === ''; });
+        label.textContent = picked.length ? (names.get(picked[0]) || picked[0]) : 'All countries';
       }
     };
   }
