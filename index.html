@@ -163,7 +163,7 @@
   <section class="rt-chart-card" aria-labelledby="rt-chart-h">
     <h2 id="rt-chart-h">Score over time</h2>
     <div class="rt-chart" id="rt-chart">—</div>
-    <p class="rt-note" style="margin:0;font-size:12px;color:var(--fg-muted)">iOS is the overall App Store rating, one reading per day. Google Play is the running average of the star ratings Play Console reports, which runs about 2 days behind; the Google Play card is the current “Default Google Play rating”.</p>
+    <p class="rt-note" style="margin:0;font-size:12px;color:var(--fg-muted)">iOS is the overall App Store rating, one reading per day; with a country or build selected it is the running average of the written reviews in that selection, because Apple does not split the overall rating that way. Google Play is the running average of the star ratings Play Console reports, which runs about 2 days behind; the Google Play card is the current “Default Google Play rating”.</p>
   </section>
 
   <section class="rt-chart-card" aria-labelledby="rt-issues-h">
@@ -296,6 +296,14 @@
     var out = [];
     if (!countries.length && !build) {
       D.iosHistory.filter(inRange).sort(byDate).forEach(function (r) { out.push({ date: r.date, platform: 'iOS', score: r3(r.score) }); });
+    } else {
+      // Apple gives no overall rating by country or build: use the running average of written reviews in the selection
+      var byDay = {};
+      D.iosReviews.filter(function (r) {
+        return (!countries.length || countries.indexOf(r.country) >= 0) && (!build || r.build === build) && inRange(r);
+      }).forEach(function (r) { var a = byDay[r.date] || (byDay[r.date] = [0, 0]); a[0] += r.n; a[1] += r.sum; });
+      var cn = 0, cs = 0;
+      Object.keys(byDay).sort().forEach(function (d) { cn += byDay[d][0]; cs += byDay[d][1]; out.push({ date: d, platform: 'iOS', score: r3(cs / cn) }); });
     }
     if (countries.length <= 1 && !(countries.length && build)) {
       if (!countries.length && !build) {
@@ -666,7 +674,7 @@
     var gg = svg.append('g').attr('transform', 'translate(' + m.l + ',' + m.t + ')');
     gg.append('g').attr('class', 'rt-yaxis').call(d3.axisLeft(y).ticks(5).tickSize(-iw).tickPadding(8).tickFormat(d3.format('.1f')));
     gg.append('g').attr('transform', 'translate(0,' + ih + ')')
-      .call(d3.axisBottom(x).ticks(W < 520 ? 4 : 7).tickSizeOuter(0).tickPadding(8).tickFormat(d3.utcFormat(spanDays > 150 ? '%b %Y' : '%b %-d')));
+      .call(d3.axisBottom(x).ticks(spanDays > 150 ? (W < 520 ? 4 : 7) : d3.utcDay.every(Math.max(1, Math.ceil(spanDays / (W < 520 ? 4 : 7))))).tickSizeOuter(0).tickPadding(8).tickFormat(d3.utcFormat(spanDays > 150 ? '%b %Y' : '%b %-d')));
     var line = d3.line().x(function (r) { return x(r.d); }).y(function (r) { return y(r.score); });
     series.forEach(function (s) {
       gg.append('path').datum(s.pts).attr('fill', 'none').attr('stroke-width', 2).attr('stroke-linejoin', 'round')
