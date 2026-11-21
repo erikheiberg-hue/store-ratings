@@ -163,7 +163,7 @@
   <section class="rt-chart-card" aria-labelledby="rt-chart-h">
     <h2 id="rt-chart-h">Score over time</h2>
     <div class="rt-chart" id="rt-chart">—</div>
-    <p class="rt-note" style="margin:0;font-size:12px;color:var(--fg-muted)">iOS is the overall App Store rating, one reading per day; with a country or build selected the line is the running average of the written reviews in that selection, because Apple keeps no daily history of its rating by country. The iOS card shows Apple’s current rating and rating count for the selected countries (for a build it falls back to written reviews). Google Play is the running average of the star ratings Play Console reports, which runs about 2 days behind; the Google Play card is the current “Default Google Play rating”.</p>
+    <p class="rt-note" style="margin:0;font-size:12px;color:var(--fg-muted)">iOS is the overall App Store rating, one reading per day; with a country selected it is Apple’s rating for that country, one reading per day, recorded from Nov 21 because Apple keeps no earlier history by country (so a country line starts as a single point). Apple gives no rating by build, so picking a build leaves the iOS card and line empty. Written reviews are never used for any rating on this page. Google Play is the running average of the star ratings Play Console reports, which runs about 2 days behind; the Google Play card is the current “Default Google Play rating”.</p>
   </section>
 
   <section class="rt-chart-card" aria-labelledby="rt-issues-h">
@@ -246,6 +246,7 @@
       headline: a.headline,
       iosReviews: a.ios.map(function (r) { return { date: r[0], country: r[1], build: r[2], n: r[3], sum: r[4] }; }),
       iosCountries: (a.ics || []).map(function (r) { return { country: r[0], avg: r[1], count: r[2] }; }),
+      iosCountryHistory: (a.ich || []).map(function (r) { return { date: r[0], country: r[1], avg: r[2], count: r[3] }; }),
       iosHistory: a.ih.map(function (r) { return { date: r[0], score: r[1] }; }),
       reviewIssues: a.ii.map(function (r) { return { date: r[0], platform: r[1], country: r[2], stars: r[3], bucket: r[4], n: r[5] }; }),
       issueBuckets: a.ib.map(function (r) { return { id: r[0], name: r[1] }; }),
@@ -260,8 +261,7 @@
   // ---------- pure calcs ----------
   // First and last day with ratings data on either store.
   function computeBounds(D) {
-    var days = D.iosReviews.map(function (r) { return r.date; })
-      .concat(D.playOverall.map(function (r) { return r.date; }), D.iosHistory.map(function (r) { return r.date; })).sort();
+    var days = D.playOverall.map(function (r) { return r.date; }).concat(D.iosHistory.map(function (r) { return r.date; })).sort();
     return { min: days[0], max: days[days.length - 1] };
   }
 
@@ -269,7 +269,6 @@
   function computeOptions(D) {
     var label = regionLabeler();
     var countries = new Set(), builds = new Set();
-    D.iosReviews.forEach(function (r) { countries.add(r.country); builds.add(r.build); });
     D.iosCountries.forEach(function (r) { countries.add(r.country); });
     D.playCountry.forEach(function (r) { countries.add(r.country); });
     D.playBuild.forEach(function (r) { builds.add(r.build); });
@@ -298,15 +297,15 @@
     var out = [];
     if (!countries.length && !build) {
       D.iosHistory.filter(inRange).sort(byDate).forEach(function (r) { out.push({ date: r.date, platform: 'iOS', score: r3(r.score) }); });
-    } else {
-      // Apple gives no overall rating by country or build: use the running average of written reviews in the selection
-      var byDay = {};
-      D.iosReviews.filter(function (r) {
-        return (!countries.length || countries.indexOf(r.country) >= 0) && (!build || r.build === build) && inRange(r);
-      }).forEach(function (r) { var a = byDay[r.date] || (byDay[r.date] = [0, 0]); a[0] += r.n; a[1] += r.sum; });
-      var cn = 0, cs = 0;
-      Object.keys(byDay).sort().forEach(function (d) { cn += byDay[d][0]; cs += byDay[d][1]; out.push({ date: d, platform: 'iOS', score: r3(cs / cn) }); });
+    } else if (countries.length && !build && D.iosCountryHistory.length) {
+      // Apple's rating for the selected countries, one reading per day (recorded daily from the day tracking began)
+      var byD = {};
+      D.iosCountryHistory.filter(function (r) { return countries.indexOf(r.country) >= 0 && inRange(r); }).forEach(function (r) {
+        var a = byD[r.date] || (byD[r.date] = [0, 0]); a[0] += r.count; a[1] += r.avg * r.count;
+      });
+      Object.keys(byD).sort().forEach(function (d) { out.push({ date: d, platform: 'iOS', score: r3(byD[d][1] / byD[d][0]) }); });
     }
+    // Apple gives no rating by build, so a build selection has no iOS line. Written reviews are never used for ratings.
     if (!countries.length && !build) {
       var pn = 0, ps = 0;
       D.playOverall.filter(inRange).sort(byDate).forEach(function (r) {
@@ -335,7 +334,7 @@
   function computeScores(D, s) {
     var countries = toArr(s.country);
     var build = s.build || '';
-    var all = D.iosReviews.map(function (r) { return r.date; }).concat(D.playOverall.map(function (r) { return r.date; })).sort();
+    var all = D.iosHistory.map(function (r) { return r.date; }).concat(D.playOverall.map(function (r) { return r.date; })).sort();
     var max = all[all.length - 1];
     var from = s.from || all[0], to = s.to || max;
     var plain = !countries.length && !build && from <= '2026-11-10' && to >= max;
@@ -359,12 +358,8 @@
       row.play_cap = fmtInt(h('play').ratings) + ' ratings';
       return row;
     }
-    var n = 0, sm = 0;
-    D.iosReviews.filter(function (r) {
-      return (!countries.length || countries.indexOf(r.country) >= 0) && (!build || r.build === build) && r.date >= from && r.date <= to;
-    }).forEach(function (r) { n += r.n; sm += r.sum; });
-    row.ios_score = n ? r3(sm / n) : null;
-    row.ios_cap = n ? fmtInt(n) + (n === 1 ? ' written review' : ' written reviews') : 'No reviews in this selection';
+    row.ios_score = null;
+    row.ios_cap = build ? 'Apple gives no rating by build' : '';
     if (countries.length && !build) {
       // Apple's own rating and rating count per country (current, all-time); date range does not apply
       var rc = 0, rs = 0;
