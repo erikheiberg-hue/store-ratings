@@ -256,6 +256,7 @@
       playCountries: (a.pcs || []).map(function (r) { return { country: r[0], isDefault: r[1] === 1, rating: r[2], count: r[3] }; }),
       playCountryHistory: (a.pch || []).map(function (r) { return { date: r[0], country: r[1], isDefault: r[2] === 1, rating: r[3], count: r[4] }; }),
       playCountryDaily: prepareDaily(a.pcd),
+      playBuildSnaps: (a.pbs || []).map(function (r) { return { date: r[0], build: r[1], avg: r[2], count: r[3] }; }),
       playBuild: a.pb.map(function (r) { return { date: r[0], build: r[1], total: r[2] }; })
     };
   }
@@ -279,6 +280,15 @@
     return { min: days[0], max: days[days.length - 1] };
   }
 
+  // Google Play rating for one build over time: the Play bucket's cumulative average (about a week behind) plus the
+  // readings of Play Console's rating by app version recorded each day (they win on the same day).
+  function buildPoints(D, build) {
+    var byDay = {};
+    D.playBuild.filter(function (r) { return r.build === build; }).forEach(function (r) { byDay[r.date] = { date: r.date, score: r.total, count: null }; });
+    D.playBuildSnaps.filter(function (r) { return r.build === build; }).forEach(function (r) { byDay[r.date] = { date: r.date, score: r.avg, count: r.count }; });
+    return Object.keys(byDay).sort().map(function (d) { return byDay[d]; });
+  }
+
   // Countries and builds that appear on either store.
   function computeOptions(D) {
     var label = regionLabeler();
@@ -286,6 +296,7 @@
     D.iosCountries.forEach(function (r) { countries.add(r.country); });
     D.playCountries.forEach(function (r) { countries.add(r.country); });
     D.playBuild.forEach(function (r) { builds.add(r.build); });
+    D.playBuildSnaps.forEach(function (r) { builds.add(r.build); });
     var newest = function (a, b) {
       var x = a.split('.').map(Number), y = b.split('.').map(Number);
       for (var i = 0; i < 3; i++) { var d = (y[i] || 0) - (x[i] || 0); if (d) return d; }
@@ -334,8 +345,8 @@
           out.push({ date: r.date, platform: 'Google Play', score: r3(r.rating) });
         });
       } else {
-        D.playBuild.filter(function (r) { return r.build === build; }).filter(inRange).sort(byDate).forEach(function (r) {
-          out.push({ date: r.date, platform: 'Google Play', score: r3(r.total) });
+        buildPoints(D, build).filter(inRange).forEach(function (r) {
+          out.push({ date: r.date, platform: 'Google Play', score: r3(r.score) });
         });
       }
     }
@@ -405,11 +416,11 @@
         row.play_cap = 'No Play data in this selection';
       }
     } else {
-      var src = D.playBuild.filter(function (r) { return r.build === build; });
-      var inR = src.filter(function (r) { return r.date >= from && r.date <= to; }).sort(byDate);
+      var inR = buildPoints(D, build).filter(function (r) { return r.date >= from && r.date <= to; });
       var last = inR[inR.length - 1];
-      row.play_score = last ? r3(last.total) : null;
-      row.play_cap = last ? 'Cumulative as of ' + longDate(parseYmd(last.date)) : 'No Play data in this selection';
+      row.play_score = last ? r3(last.score) : null;
+      row.play_cap = !last ? 'No Play data in this selection'
+        : last.count ? fmtInt(last.count) + ' ratings' : 'Cumulative as of ' + longDate(parseYmd(last.date));
     }
     return row;
   }
