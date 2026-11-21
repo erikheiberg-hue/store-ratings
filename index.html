@@ -255,14 +255,27 @@
       playCountry: a.pc.map(function (r) { return { date: r[0], country: r[1], total: r[2] }; }),
       playCountries: (a.pcs || []).map(function (r) { return { country: r[0], isDefault: r[1] === 1, rating: r[2], count: r[3] }; }),
       playCountryHistory: (a.pch || []).map(function (r) { return { date: r[0], country: r[1], isDefault: r[2] === 1, rating: r[3], count: r[4] }; }),
+      playCountryDaily: prepareDaily(a.pcd),
       playBuild: a.pb.map(function (r) { return { date: r[0], build: r[1], total: r[2] }; })
     };
+  }
+
+  // Google Play rating per country per day: {CC: [{date, rating}]} from {d: [dates], s: {CC: [hundredths|null]}}
+  function prepareDaily(p) {
+    var out = {};
+    if (!p || !p.d) return out;
+    Object.keys(p.s).forEach(function (cc) {
+      out[cc] = [];
+      p.s[cc].forEach(function (v, i) { if (v !== null && v !== undefined) out[cc].push({ date: p.d[i], rating: v / 100 }); });
+    });
+    return out;
   }
 
   // ---------- pure calcs ----------
   // First and last day with ratings data on either store.
   function computeBounds(D) {
-    var days = D.playOverall.map(function (r) { return r.date; }).concat(D.iosHistory.map(function (r) { return r.date; })).sort();
+    var days = D.playOverall.map(function (r) { return r.date; }).concat(D.iosHistory.map(function (r) { return r.date; }))
+      .concat(Object.keys(D.playCountryDaily).reduce(function (a, cc) { return a.concat(D.playCountryDaily[cc].map(function (r) { return r.date; })); }, [])).sort();
     return { min: days[0], max: days[days.length - 1] };
   }
 
@@ -316,8 +329,8 @@
       });
     } else if (!(countries.length && build)) {
       if (countries.length) {
-        // Google Play's rating for the country as Play Console shows it, one reading per day
-        D.playCountryHistory.filter(function (r) { return r.country === countries[0]; }).filter(inRange).sort(byDate).forEach(function (r) {
+        // Google Play's rating for the country as Play Console shows it, every day Google publishes
+        (D.playCountryDaily[countries[0]] || []).filter(inRange).forEach(function (r) {
           out.push({ date: r.date, platform: 'Google Play', score: r3(r.rating) });
         });
       } else {
