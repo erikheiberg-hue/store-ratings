@@ -320,17 +320,19 @@
     var from = s.from || all[0], to = s.to || all[all.length - 1];
     var inRange = function (r) { return r.date >= from && r.date <= to; };
     var out = [];
-    if (!countries.length && !build) {
-      D.iosHistory.filter(inRange).sort(byDate).forEach(function (r) { out.push({ date: r.date, platform: 'iOS', score: r3(r.score) }); });
-    } else if (countries.length && !build && D.iosCountryHistory.length) {
+    // Apple has no rating by build (App Store Connect and the App Store return the same all-version rating for every
+    // version), so with a build selected the iOS line is the all-version rating and says so. Written reviews are never used for ratings.
+    var iosName = build ? 'iOS (all versions)' : 'iOS';
+    if (!countries.length) {
+      D.iosHistory.filter(inRange).sort(byDate).forEach(function (r) { out.push({ date: r.date, platform: iosName, score: r3(r.score) }); });
+    } else if (D.iosCountryHistory.length) {
       // Apple's rating for the selected countries, one reading per day (recorded daily from the day tracking began)
       var byD = {};
       D.iosCountryHistory.filter(function (r) { return countries.indexOf(r.country) >= 0 && inRange(r); }).forEach(function (r) {
         var a = byD[r.date] || (byD[r.date] = [0, 0]); a[0] += r.count; a[1] += r.avg * r.count;
       });
-      Object.keys(byD).sort().forEach(function (d) { out.push({ date: d, platform: 'iOS', score: r3(byD[d][1] / byD[d][0]) }); });
+      Object.keys(byD).sort().forEach(function (d) { out.push({ date: d, platform: iosName, score: r3(byD[d][1] / byD[d][0]) }); });
     }
-    // Apple gives no rating by build, so a build selection has no iOS line. Written reviews are never used for ratings.
     if (!countries.length && !build) {
       var pn = 0, ps = 0;
       D.playOverall.filter(inRange).sort(byDate).forEach(function (r) {
@@ -338,19 +340,33 @@
         pn += r.n; ps += r.sum;
         out.push({ date: r.date, platform: 'Google Play', score: r3(ps / pn) });
       });
-    } else if (!(countries.length && build)) {
-      if (countries.length) {
-        // Google Play's rating for the country as Play Console shows it, every day Google publishes
-        (D.playCountryDaily[countries[0]] || []).filter(inRange).forEach(function (r) {
-          out.push({ date: r.date, platform: 'Google Play', score: r3(r.rating) });
-        });
-      } else {
-        buildPoints(D, build).filter(inRange).forEach(function (r) {
-          out.push({ date: r.date, platform: 'Google Play', score: r3(r.score) });
-        });
-      }
+    } else if (countries.length) {
+      // Google Play's rating for the country as Play Console shows it, every day Google publishes.
+      // Google reports no rating by country and build together, so with a build too this is the country's all-build rating.
+      (D.playCountryDaily[countries[0]] || []).filter(inRange).forEach(function (r) {
+        out.push({ date: r.date, platform: build ? 'Google Play (all builds)' : 'Google Play', score: r3(r.rating) });
+      });
+    } else {
+      buildPoints(D, build).filter(inRange).forEach(function (r) {
+        out.push({ date: r.date, platform: 'Google Play', score: r3(r.score) });
+      });
     }
     return out;
+  }
+
+  // First and last day that have data for the current country/build selection (whatever the date range).
+  function selectionBounds(D, s) {
+    var days = computeSeries(D, Object.assign({}, s, { from: '0000-00-00', to: '9999-99-99' })).map(function (r) { return r.date; }).sort();
+    return days.length ? { min: days[0], max: days[days.length - 1] } : computeBounds(D);
+  }
+
+  // The selection with its dates held inside the days that have data.
+  function effective(s) {
+    var b = selectionBounds(D, s);
+    var f = s.from || b.min, t = s.to || b.max;
+    f = f < b.min ? b.min : f > b.max ? b.max : f;
+    t = t > b.max ? b.max : t < b.min ? b.min : t;
+    return Object.assign({}, s, { from: f, to: t });
   }
 
   // Scores for the current selection (headline when "plain", else filtered averages).
@@ -382,17 +398,20 @@
       return row;
     }
     row.ios_score = null;
-    row.ios_cap = build ? 'Apple gives no rating by build' : '';
-    if (countries.length && !build) {
+    row.ios_cap = '';
+    var vers = build ? ', all versions' : '';
+    if (countries.length) {
       // Apple's own rating and rating count per country (current, all-time); date range does not apply
       var rc = 0, rs = 0;
       D.iosCountries.forEach(function (r) { if (countries.indexOf(r.country) >= 0) { rc += r.count; rs += r.avg * r.count; } });
-      if (rc) { row.ios_score = r3(rs / rc); row.ios_cap = fmtInt(rc) + (rc === 1 ? ' rating' : ' ratings'); }
+      if (rc) { row.ios_score = r3(rs / rc); row.ios_cap = fmtInt(rc) + (rc === 1 ? ' rating' : ' ratings') + vers; }
+    } else if (build) {
+      // Apple has no rating by build: the all-version rating
+      row.ios_score = h('ios').score;
+      row.ios_cap = fmtInt(h('ios').ratings) + ' ratings' + vers;
     }
     if (countries.length > 1) {
       row.play_cap = 'Google Play can’t combine countries; the chart shows one line per country';
-    } else if (countries.length && build) {
-      row.play_cap = 'Not reported by country and build together';
     } else if (!countries.length && !build) {
       var pn = 0, ps = 0;
       var inRangePlay = D.playOverall.filter(function (r) { return r.date >= from && r.date <= to; }).sort(byDate);
@@ -410,8 +429,8 @@
       var pcr = D.playCountries.filter(function (r) { return r.country === countries[0]; })[0];
       if (pcr) {
         row.play_score = r3(pcr.rating);
-        row.play_cap = pcr.isDefault ? 'Default rating (too few ratings in this country)'
-          : fmtInt(pcr.count) + (pcr.count === 1 ? ' rating' : ' ratings') + ' in the last 7 days';
+        row.play_cap = (pcr.isDefault ? 'Default rating (too few ratings in this country)'
+          : fmtInt(pcr.count) + (pcr.count === 1 ? ' rating' : ' ratings') + ' in the last 7 days') + (build ? ', all builds' : '');
       } else {
         row.play_cap = 'No Play data in this selection';
       }
@@ -581,7 +600,11 @@
 
   // Date input bound to state[key]; shows the data bound when the state is empty.
   function bindDate(el, key, getBound, isFrom) {
-    var shown = function () { var b = getBound(); return state[key] || (b ? (isFrom ? b.min : b.max) : ''); };
+    var shown = function () {
+      var b = getBound(), v = state[key] || (b ? (isFrom ? b.min : b.max) : '');
+      if (b && v) { if (v < b.min) v = b.min; if (v > b.max) v = b.max; }
+      return v;
+    };
     el.onchange = function () {
       if (el.value && el.validity.valid) state[key] = el.value;
       else if (!el.value) state[key] = null;
@@ -605,8 +628,9 @@
     build.onchange = function () { state.build = build.value || ''; render(); };
     syncers.push(function () { build.value = state.build || ''; });
 
-    syncers.push(bindDate($('rt-from'), 'from', function () { return bounds; }, true));
-    syncers.push(bindDate($('rt-to'), 'to', function () { return bounds; }, false));
+    // the calendar only spans the days that have data for the current country/build selection
+    syncers.push(bindDate($('rt-from'), 'from', function () { return selectionBounds(D, state); }, true));
+    syncers.push(bindDate($('rt-to'), 'to', function () { return selectionBounds(D, state); }, false));
     $('rt-reset').addEventListener('click', function () {
       var d = defaultState();
       ['country', 'build', 'from', 'to'].forEach(function (k) { state[k] = d[k]; });
@@ -655,7 +679,7 @@
 
   // ---------- render functions ----------
   function renderCards() {
-    var sc = computeScores(D, state);
+    var sc = computeScores(D, effective(state));
     ['ios', 'play'].forEach(function (k) {
       var v = sc[k + '_score'];
       $(k + '-score').textContent = v == null ? '—' : v.toFixed(3);
@@ -691,16 +715,16 @@
 
   function renderChart() {
     var el = $('rt-chart');
-    var data = computeSeries(D, state)
+    var data = computeSeries(D, effective(state))
       .map(function (r) { return { d: parseYmd(r.date), platform: r.platform, score: r.score }; })
       .filter(function (r) { return r.d && r.score != null; });
     if (!data.length) { emptyMsg(el, 'No ratings in this selection.'); return; }
     var names = [];
     data.forEach(function (r) { if (names.indexOf(r.platform) < 0) names.push(r.platform); });
-    names.sort(function (a, b) { return (a === 'iOS' ? 0 : 1) - (b === 'iOS' ? 0 : 1); });
+    names.sort(function (a, b) { return (a.indexOf('iOS') === 0 ? 0 : 1) - (b.indexOf('iOS') === 0 ? 0 : 1); });
     var playColors = [SERIES[1], '#d9b341', '#b8703a'], pi = 0;
     var series = names.map(function (n) {
-      return { name: n, color: n === 'iOS' ? SERIES[0] : playColors[pi++ % playColors.length],
+      return { name: n, color: n.indexOf('iOS') === 0 ? SERIES[0] : playColors[pi++ % playColors.length],
         pts: data.filter(function (r) { return r.platform === n; }).sort(function (a, b) { return a.d - b.d; }) };
     }).filter(function (s) { return s.pts.length; });
 
