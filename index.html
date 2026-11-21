@@ -163,7 +163,7 @@
   <section class="rt-chart-card" aria-labelledby="rt-chart-h">
     <h2 id="rt-chart-h">Score over time</h2>
     <div class="rt-chart" id="rt-chart">—</div>
-    <p class="rt-note" style="margin:0;font-size:12px;color:var(--fg-muted)">iOS is the overall App Store rating, one reading per day; with a country or build selected it is the running average of the written reviews in that selection, because Apple does not split the overall rating that way. Google Play is the running average of the star ratings Play Console reports, which runs about 2 days behind; the Google Play card is the current “Default Google Play rating”.</p>
+    <p class="rt-note" style="margin:0;font-size:12px;color:var(--fg-muted)">iOS is the overall App Store rating, one reading per day; with a country or build selected the line is the running average of the written reviews in that selection, because Apple keeps no daily history of its rating by country. The iOS card shows Apple’s current rating and rating count for the selected countries (for a build it falls back to written reviews). Google Play is the running average of the star ratings Play Console reports, which runs about 2 days behind; the Google Play card is the current “Default Google Play rating”.</p>
   </section>
 
   <section class="rt-chart-card" aria-labelledby="rt-issues-h">
@@ -245,6 +245,7 @@
     return {
       headline: a.headline,
       iosReviews: a.ios.map(function (r) { return { date: r[0], country: r[1], build: r[2], n: r[3], sum: r[4] }; }),
+      iosCountries: (a.ics || []).map(function (r) { return { country: r[0], avg: r[1], count: r[2] }; }),
       iosHistory: a.ih.map(function (r) { return { date: r[0], score: r[1] }; }),
       reviewIssues: a.ii.map(function (r) { return { date: r[0], platform: r[1], country: r[2], stars: r[3], bucket: r[4], n: r[5] }; }),
       issueBuckets: a.ib.map(function (r) { return { id: r[0], name: r[1] }; }),
@@ -269,6 +270,7 @@
     var label = regionLabeler();
     var countries = new Set(), builds = new Set();
     D.iosReviews.forEach(function (r) { countries.add(r.country); builds.add(r.build); });
+    D.iosCountries.forEach(function (r) { countries.add(r.country); });
     D.playCountry.forEach(function (r) { countries.add(r.country); });
     D.playBuild.forEach(function (r) { builds.add(r.build); });
     var newest = function (a, b) {
@@ -363,6 +365,12 @@
     }).forEach(function (r) { n += r.n; sm += r.sum; });
     row.ios_score = n ? r3(sm / n) : null;
     row.ios_cap = n ? fmtInt(n) + (n === 1 ? ' written review' : ' written reviews') : 'No reviews in this selection';
+    if (countries.length && !build) {
+      // Apple's own rating and rating count per country (current, all-time); date range does not apply
+      var rc = 0, rs = 0;
+      D.iosCountries.forEach(function (r) { if (countries.indexOf(r.country) >= 0) { rc += r.count; rs += r.avg * r.count; } });
+      if (rc) { row.ios_score = r3(rs / rc); row.ios_cap = fmtInt(rc) + (rc === 1 ? ' rating' : ' ratings'); }
+    }
     if (countries.length > 1) {
       row.play_cap = 'Google Play can’t combine countries; the chart shows one line per country';
     } else if (countries.length && build) {
