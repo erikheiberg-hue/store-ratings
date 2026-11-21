@@ -253,6 +253,8 @@
       playOverall: a.po.map(function (r) { return { date: r[0], n: r[1], sum: r[2] }; }),
       playCumulative: a.po_mode === 'cumulative',
       playCountry: a.pc.map(function (r) { return { date: r[0], country: r[1], total: r[2] }; }),
+      playCountries: (a.pcs || []).map(function (r) { return { country: r[0], isDefault: r[1] === 1, rating: r[2], count: r[3] }; }),
+      playCountryHistory: (a.pch || []).map(function (r) { return { date: r[0], country: r[1], isDefault: r[2] === 1, rating: r[3], count: r[4] }; }),
       playBuild: a.pb.map(function (r) { return { date: r[0], build: r[1], total: r[2] }; })
     };
   }
@@ -269,7 +271,7 @@
     var label = regionLabeler();
     var countries = new Set(), builds = new Set();
     D.iosCountries.forEach(function (r) { countries.add(r.country); });
-    D.playCountry.forEach(function (r) { countries.add(r.country); });
+    D.playCountries.forEach(function (r) { countries.add(r.country); });
     D.playBuild.forEach(function (r) { builds.add(r.build); });
     var newest = function (a, b) {
       var x = a.split('.').map(Number), y = b.split('.').map(Number);
@@ -313,12 +315,10 @@
         out.push({ date: r.date, platform: 'Google Play', score: r3(ps / pn) });
       });
     } else if (!(countries.length && build)) {
-      // Google Play reports one country (or one build) at a time, so several countries get one line each
       if (countries.length) {
-        countries.slice(0, 3).forEach(function (c) {
-          D.playCountry.filter(function (r) { return r.country === c; }).filter(inRange).sort(byDate).forEach(function (r) {
-            out.push({ date: r.date, platform: countries.length > 1 ? 'Google Play · ' + c : 'Google Play', score: r3(r.total) });
-          });
+        // Google Play's rating for the country as Play Console shows it, one reading per day
+        D.playCountryHistory.filter(function (r) { return r.country === countries[0]; }).filter(inRange).sort(byDate).forEach(function (r) {
+          out.push({ date: r.date, platform: 'Google Play', score: r3(r.rating) });
         });
       } else {
         D.playBuild.filter(function (r) { return r.build === build; }).filter(inRange).sort(byDate).forEach(function (r) {
@@ -381,10 +381,18 @@
         row.play_score = pn ? r3(ps / pn) : null;
         row.play_cap = pn ? fmtInt(pn) + ' ratings' : 'No Play ratings in this selection';
       }
+    } else if (countries.length) {
+      // The rating Google Play shows for this country (Play Console > Ratings > Breakdown); "Default rating" = too few ratings
+      var pcr = D.playCountries.filter(function (r) { return r.country === countries[0]; })[0];
+      if (pcr) {
+        row.play_score = r3(pcr.rating);
+        row.play_cap = pcr.isDefault ? 'Default rating (too few ratings in this country)'
+          : fmtInt(pcr.count) + (pcr.count === 1 ? ' rating' : ' ratings') + ' in the last 7 days';
+      } else {
+        row.play_cap = 'No Play data in this selection';
+      }
     } else {
-      var src = countries.length
-        ? D.playCountry.filter(function (r) { return r.country === countries[0]; })
-        : D.playBuild.filter(function (r) { return r.build === build; });
+      var src = D.playBuild.filter(function (r) { return r.build === build; });
       var inR = src.filter(function (r) { return r.date >= from && r.date <= to; }).sort(byDate);
       var last = inR[inR.length - 1];
       row.play_score = last ? r3(last.total) : null;
