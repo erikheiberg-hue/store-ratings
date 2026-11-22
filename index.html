@@ -268,11 +268,12 @@
   }
 
   // ---------- pure calcs ----------
-  // First and last day with ratings data on either store.
+  // The days every ratings chart covers: from the day the game went live (first release) to the latest day with data.
   function computeBounds(D) {
     var days = D.playOverall.map(function (r) { return r.date; }).concat(D.iosHistory.map(function (r) { return r.date; }))
       .concat(Object.keys(D.playCountryDaily).reduce(function (a, cc) { return a.concat(D.playCountryDaily[cc].map(function (r) { return r.date; })); }, [])).sort();
-    return { min: days[0], max: days[days.length - 1] };
+    var live = D.releases.map(function (r) { return r.date; }).sort()[0];
+    return { min: live || days[0], max: days[days.length - 1] };
   }
 
   // Countries that appear on either store.
@@ -323,15 +324,9 @@
     return out;
   }
 
-  // First and last day that have data for the current country selection (whatever the date range).
-  function selectionBounds(D, s) {
-    var days = computeSeries(D, Object.assign({}, s, { from: '0000-00-00', to: '9999-99-99' })).map(function (r) { return r.date; }).sort();
-    return days.length ? { min: days[0], max: days[days.length - 1] } : computeBounds(D);
-  }
-
-  // The selection with its dates held inside the days that have data.
+  // The selection with its dates held inside the days every chart covers (launch day to latest data).
   function effective(s) {
-    var b = selectionBounds(D, s);
+    var b = bounds || computeBounds(D);
     var f = s.from || b.min, t = s.to || b.max;
     f = f < b.min ? b.min : f > b.max ? b.max : f;
     t = t > b.max ? b.max : t < b.min ? b.min : t;
@@ -344,7 +339,7 @@
     var all = D.iosHistory.map(function (r) { return r.date; }).concat(D.playOverall.map(function (r) { return r.date; })).sort();
     var max = all[all.length - 1];
     var from = s.from || all[0], to = s.to || max;
-    var plain = !countries.length && from <= '2026-11-10' && to >= max;
+    var plain = !countries.length && from <= computeBounds(D).min && to >= max;
     var h = function (k) { return D.headline.find(function (r) { return r.platform === k; }); };
     var row = { ios_score: null, ios_cap: '', play_score: null, play_cap: '', ios_dod: '', ios_dir: '', play_dod: '', play_dir: '' };
     var dayChange = function (history) {
@@ -580,9 +575,9 @@
     combos.push(makeCombo($('rt-country-combo'), 'rt-country', 'country', function () { return opts.countries; }));
     combos.push(makeCombo($('ri-country-combo'), 'ri-country', 'ri_country', function () { return issueCountries; }));
 
-    // the calendar only spans the days that have data for the current country selection
-    syncers.push(bindDate($('rt-from'), 'from', function () { return selectionBounds(D, state); }, true));
-    syncers.push(bindDate($('rt-to'), 'to', function () { return selectionBounds(D, state); }, false));
+    // the calendar spans the same days for every country: launch day to the latest day with data
+    syncers.push(bindDate($('rt-from'), 'from', function () { return bounds; }, true));
+    syncers.push(bindDate($('rt-to'), 'to', function () { return bounds; }, false));
     $('rt-reset').addEventListener('click', function () {
       var d = defaultState();
       ['country', 'from', 'to'].forEach(function (k) { state[k] = d[k]; });
@@ -667,7 +662,8 @@
 
   function renderChart() {
     var el = $('rt-chart');
-    var data = computeSeries(D, effective(state))
+    var eff = effective(state);
+    var data = computeSeries(D, eff)
       .map(function (r) { return { d: parseYmd(r.date), platform: r.platform, score: r.score }; })
       .filter(function (r) { return r.d && r.score != null; });
     if (!data.length) { emptyMsg(el, 'No ratings in this selection.'); return; }
@@ -682,8 +678,8 @@
 
     var W = Math.max(280, el.clientWidth), H = 340, m = { t: 12, r: 18, b: 28, l: 40 };
     var iw = W - m.l - m.r, ih = H - m.t - m.b;
-    var ext = d3.extent(data, function (r) { return r.d; });
-    var x0 = ext[0], x1 = ext[1];
+    // the horizontal axis is the selected date range for every country, whatever days that country has data for
+    var x0 = parseYmd(eff.from), x1 = parseYmd(eff.to);
     if (+x0 === +x1) { x0 = d3.utcDay.offset(x0, -1); x1 = d3.utcDay.offset(x1, 1); }
     var x = d3.scaleUtc().domain([x0, x1]).range([0, iw]);
     var lo = d3.min(data, function (r) { return r.score; });
