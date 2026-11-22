@@ -444,10 +444,12 @@
     return row;
   }
 
-  // First and last day with a written review on either store.
+  // The review chart's date selection starts on 11/10/26 at the earliest and ends on the last day with a written review.
+  var ISSUE_EARLIEST = '2026-11-10';
   function computeIssueBounds(D) {
     var days = D.reviewIssues.filter(function (r) { return r.bucket === 'all'; }).map(function (r) { return r.date; }).sort();
-    return { min: days[0], max: days[days.length - 1] };
+    var min = days[0] < ISSUE_EARLIEST ? ISSUE_EARLIEST : days[0];
+    return { min: min, max: days[days.length - 1] };
   }
 
   // Countries with at least one App Store review (Google Play reviews carry no country).
@@ -462,7 +464,7 @@
     var platform = s.ri_platform || '';
     var countries = toArr(s.ri_country);
     var stars = toArr(s.ri_stars).length ? toArr(s.ri_stars).map(Number) : [1, 2, 3, 4, 5];
-    var from = s.ri_from || '0000-00-00', to = s.ri_to || '9999-99-99';
+    var from = s.ri_from && s.ri_from > ISSUE_EARLIEST ? s.ri_from : ISSUE_EARLIEST, to = s.ri_to || '9999-99-99';
     return function (r) {
       return !((platform && r.platform !== platform) ||
         (countries.length && (r.platform !== 'ios' || countries.indexOf(r.country) < 0)) ||
