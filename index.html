@@ -281,10 +281,26 @@
     return !!(r && r.isDefault);
   }
 
+  // A country with too few ratings for Google to show its own rating (Google shows its default there): its own rating
+  // is the average of the ratings it has given so far. It holds from the first rating, steps when a new rating comes in
+  // (Play Console's daily "Average rating" for the country, averaged over the days with ratings), and ends on the
+  // all-to-date average the card shows.
+  function ownRatingPoints(D, cc) {
+    var days = D.playCountryAvg[cc] || [];
+    if (!days.length) return [];
+    var pcr = D.playCountries.filter(function (x) { return x.country === cc; })[0];
+    var d = parseYmd(days[0].date), end = parseYmd(computeBounds(D).max), out = [], i = 0, sum = 0, n = 0, cur = null;
+    for (; d <= end; d = new Date(d.getTime() + 864e5)) {
+      var ymd = d.toISOString().slice(0, 10);
+      while (i < days.length && days[i].date <= ymd) { sum += days[i].rating; n++; i++; cur = sum / n; }
+      out.push({ date: ymd, rating: cur });
+    }
+    if (pcr && pcr.avg != null && out.length) out[out.length - 1].rating = pcr.avg;
+    return out;
+  }
+
   function playCountryPoints(D, cc) {
-    // A country with too few ratings for Google to show its own rating (Google shows its default there) is drawn from the
-    // ratings that country itself gave: Play Console's daily "Average rating" for the country (days with a rating only).
-    if (isDefaultCountry(D, cc)) return (D.playCountryAvg[cc] || []).slice();
+    if (isDefaultCountry(D, cc)) return ownRatingPoints(D, cc);
     var byDay = {};
     D.playCountryHistory.filter(function (r) { return r.country === cc; }).forEach(function (r) { byDay[r.date] = { date: r.date, rating: r.rating }; });
     (D.playCountryDaily[cc] || []).forEach(function (r) { byDay[r.date] = { date: r.date, rating: r.rating }; });
