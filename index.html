@@ -764,16 +764,20 @@
       label.append('title').text(o.version + ' went live ' + longDate(o.d));
     });
     var line = d3.line().x(function (r) { return x(r.d); }).y(function (r) { return y(r.score); });
+    // iOS is drawn first as a wider line with hollow ring markers and Google Play on top as a thin line with solid dots,
+    // so when both have the same rating both stay visible (blue edge around the orange line, blue ring around the orange dot)
     series.forEach(function (s) {
-      gg.append('path').datum(s.pts).attr('fill', 'none').attr('stroke-width', 2).attr('stroke-linejoin', 'round')
-        .style('stroke', s.color).attr('d', line);
+      var ios = s.name.indexOf('iOS') === 0;
+      gg.append('path').datum(s.pts).attr('fill', 'none').attr('stroke-width', ios ? 5 : 2).attr('stroke-linejoin', 'round')
+        .attr('stroke-linecap', 'round').style('stroke', s.color).attr('d', line);
       if (s.pts.length <= 60) {
-        gg.append('g').selectAll('circle').data(s.pts).join('circle').attr('r', 2.5)
-          .attr('cx', function (r) { return x(r.d); }).attr('cy', function (r) { return y(r.score); }).style('fill', s.color);
+        gg.append('g').selectAll('circle').data(s.pts).join('circle').attr('r', ios ? 5 : 2.5)
+          .attr('cx', function (r) { return x(r.d); }).attr('cy', function (r) { return y(r.score); })
+          .style('fill', ios ? 'var(--panel)' : s.color).style('stroke', ios ? s.color : 'none').attr('stroke-width', ios ? 2 : 0);
       }
       var last = s.pts[s.pts.length - 1];
-      gg.append('circle').attr('r', 4.5).attr('cx', x(last.d)).attr('cy', y(last.score)).style('fill', s.color)
-        .style('stroke', 'var(--panel)').attr('stroke-width', 2);
+      gg.append('circle').attr('r', ios ? 7.5 : 4.5).attr('cx', x(last.d)).attr('cy', y(last.score))
+        .style('fill', ios ? 'none' : s.color).style('stroke', ios ? s.color : 'var(--panel)').attr('stroke-width', 2);
     });
 
     var tip = document.createElement('div');
