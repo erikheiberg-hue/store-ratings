@@ -255,9 +255,10 @@
       playOverall: a.po.map(function (r) { return { date: r[0], n: r[1], sum: r[2] }; }),
       playCumulative: a.po_mode === 'cumulative',
       playCountry: a.pc.map(function (r) { return { date: r[0], country: r[1], total: r[2] }; }),
-      playCountries: (a.pcs || []).map(function (r) { return { country: r[0], isDefault: r[1] === 1, rating: r[2], count: r[3] }; }),
+      playCountries: (a.pcs || []).map(function (r) { return { country: r[0], isDefault: r[1] === 1, rating: r[2], count: r[3], avg: r[4] }; }),
       playCountryHistory: (a.pch || []).map(function (r) { return { date: r[0], country: r[1], isDefault: r[2] === 1, rating: r[3], count: r[4] }; }),
       playCountryDaily: prepareDaily(a.pcd),
+      playCountryAvg: prepareDaily(a.pca),
       releases: (a.rel || []).map(function (r) { return { platform: r[0], version: r[1], date: r[2] }; })
     };
   }
@@ -275,7 +276,15 @@
 
   // Google Play's rating for one country, every day there is data: Play Console's daily series, plus the reading
   // recorded each morning for days the daily series hasn't published yet (the daily value wins on the same day).
+  function isDefaultCountry(D, cc) {
+    var r = D.playCountries.filter(function (x) { return x.country === cc; })[0];
+    return !!(r && r.isDefault);
+  }
+
   function playCountryPoints(D, cc) {
+    // A country with too few ratings for Google to show its own rating (Google shows its default there) is drawn from the
+    // ratings that country itself gave: Play Console's daily "Average rating" for the country (days with a rating only).
+    if (isDefaultCountry(D, cc)) return (D.playCountryAvg[cc] || []).slice();
     var byDay = {};
     D.playCountryHistory.filter(function (r) { return r.country === cc; }).forEach(function (r) { byDay[r.date] = { date: r.date, rating: r.rating }; });
     (D.playCountryDaily[cc] || []).forEach(function (r) { byDay[r.date] = { date: r.date, rating: r.rating }; });
@@ -401,13 +410,19 @@
       // The rating Google Play shows for this country on the last day of the selected range (the same value the chart ends on);
       // "Default rating" = too few ratings in the country, so Google shows its default
       var pcr = D.playCountries.filter(function (r) { return r.country === countries[0]; })[0];
-      var cpts = playCountryPoints(D, countries[0]).filter(function (r) { return r.date >= from && r.date <= to; });
-      var lastC = cpts[cpts.length - 1];
-      if (lastC) {
-        row.play_score = r3(lastC.rating);
-        row.play_cap = (pcr && pcr.isDefault ? 'Default rating (too few ratings in this country), as of ' : 'As of ') + longDate(parseYmd(lastC.date));
+      if (pcr && pcr.isDefault) {
+        // too few ratings for Google to show the country's own rating: show the average of the ratings the country gave
+        row.play_score = r3(pcr.avg);
+        row.play_cap = fmtInt(pcr.count) + (pcr.count === 1 ? ' rating' : ' ratings');
       } else {
-        row.play_cap = 'No Play data in this selection';
+        var cpts = playCountryPoints(D, countries[0]).filter(function (r) { return r.date >= from && r.date <= to; });
+        var lastC = cpts[cpts.length - 1];
+        if (lastC) {
+          row.play_score = r3(lastC.rating);
+          row.play_cap = 'As of ' + longDate(parseYmd(lastC.date));
+        } else {
+          row.play_cap = 'No Play data in this selection';
+        }
       }
     }
     return row;
