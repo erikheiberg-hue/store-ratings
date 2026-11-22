@@ -697,10 +697,17 @@
     gg.append('g').attr('class', 'rt-yaxis').call(d3.axisLeft(y).ticks(5).tickSize(-iw).tickPadding(8).tickFormat(d3.format('.1f')));
     gg.append('g').attr('transform', 'translate(0,' + ih + ')')
       .call(d3.axisBottom(x).ticks(spanDays > 150 ? (W < 520 ? 4 : 7) : d3.utcDay.every(Math.max(1, Math.ceil(spanDays / (W < 520 ? 4 : 7))))).tickSizeOuter(0).tickPadding(8).tickFormat(d3.utcFormat(spanDays > 150 ? '%b %Y' : '%b %-d')));
-    // Release lines: one grey vertical line per build, labelled with the build number, on the first day it went live on any store
-    var first = {};
-    (D.releases || []).forEach(function (r) { if (!first[r.version] || r.date < first[r.version]) first[r.version] = r.date; });
-    var rels = Object.keys(first).map(function (v) { return { version: v, d: parseYmd(first[v]) }; })
+    // Release lines: grey vertical lines labelled with the build number on the day it went live. When a build went live
+    // on the same day on both stores it gets one line; otherwise one line per store, labelled "iOS" or "Google".
+    var byVer = {};
+    (D.releases || []).forEach(function (r) { (byVer[r.version] = byVer[r.version] || []).push(r); });
+    var relList = [];
+    Object.keys(byVer).forEach(function (v) {
+      var rs = byVer[v], days = rs.map(function (r) { return r.date; }).filter(function (d, i, a) { return a.indexOf(d) === i; });
+      if (days.length === 1) relList.push({ version: v, label: v, date: days[0] });
+      else rs.forEach(function (r) { relList.push({ version: v, label: v + (r.platform === 'ios' ? ' iOS' : ' Google'), date: r.date }); });
+    });
+    var rels = relList.map(function (o) { return { version: o.label, d: parseYmd(o.date) }; })
       .filter(function (o) { return o.d && o.d >= x0 && o.d <= x1; })
       .sort(function (a, b) { return a.d - b.d; });
     rels.forEach(function (o, i) {
