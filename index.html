@@ -790,9 +790,9 @@
           .style('stroke', 'var(--panel)').attr('stroke-width', 2);
       }
     });
-    gg.append('g').selectAll('circle').data(both).join('circle').attr('r', 1.75)
+    gg.append('g').selectAll('circle').data(both).join('circle').attr('r', 2)
       .attr('cx', function (r) { return x(r.d); }).attr('cy', function (r) { return y(r.score); })
-      .style('fill', iosS ? iosS.color : 'none').style('stroke', gS ? gS.color : 'none').attr('stroke-width', 1.5);
+      .style('fill', iosS ? iosS.color : 'none').style('stroke', gS ? gS.color : 'none').attr('stroke-width', 1);
 
     var tip = document.createElement('div');
     tip.className = 'rt-tip';
