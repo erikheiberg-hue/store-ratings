@@ -697,22 +697,20 @@
     gg.append('g').attr('class', 'rt-yaxis').call(d3.axisLeft(y).ticks(5).tickSize(-iw).tickPadding(8).tickFormat(d3.format('.1f')));
     gg.append('g').attr('transform', 'translate(0,' + ih + ')')
       .call(d3.axisBottom(x).ticks(spanDays > 150 ? (W < 520 ? 4 : 7) : d3.utcDay.every(Math.max(1, Math.ceil(spanDays / (W < 520 ? 4 : 7))))).tickSizeOuter(0).tickPadding(8).tickFormat(d3.utcFormat(spanDays > 150 ? '%b %Y' : '%b %-d')));
-    // Release lines: a vertical line labelled with the build number on the day it went live on each store shown
-    var colorOf = function (platform) {
-      var hit = series.filter(function (s) { return (s.name.indexOf('iOS') === 0) === (platform === 'ios'); })[0];
-      return hit ? hit.color : null;
-    };
-    var rels = (D.releases || []).map(function (r) { return { r: r, d: parseYmd(r.date), color: colorOf(r.platform) }; })
-      .filter(function (o) { return o.d && o.color && o.d >= x0 && o.d <= x1; })
+    // Release lines: one grey vertical line per build, labelled with the build number, on the first day it went live on any store
+    var first = {};
+    (D.releases || []).forEach(function (r) { if (!first[r.version] || r.date < first[r.version]) first[r.version] = r.date; });
+    var rels = Object.keys(first).map(function (v) { return { version: v, d: parseYmd(first[v]) }; })
+      .filter(function (o) { return o.d && o.d >= x0 && o.d <= x1; })
       .sort(function (a, b) { return a.d - b.d; });
     rels.forEach(function (o, i) {
       var rx = x(o.d), flip = rx > iw - 40, g = gg.append('g').style('pointer-events', 'none');
       g.append('line').attr('x1', rx).attr('x2', rx).attr('y1', 0).attr('y2', ih).attr('stroke-width', 1.5)
-        .attr('stroke-dasharray', '4 3').style('stroke', o.color);
+        .attr('stroke-dasharray', '4 3').style('stroke', 'var(--chart-ref)');
       var label = g.append('text').attr('x', rx + (flip ? -4 : 4)).attr('y', 10 + (i % 2) * 13)
-        .attr('text-anchor', flip ? 'end' : 'start').attr('font-size', 11).attr('font-weight', 600).style('fill', o.color)
-        .text(o.r.version);
-      label.append('title').text((o.r.platform === 'ios' ? 'iOS ' : 'Google Play ') + o.r.version + ' went live ' + longDate(o.d));
+        .attr('text-anchor', flip ? 'end' : 'start').attr('font-size', 11).attr('font-weight', 600).style('fill', 'var(--fg-muted)')
+        .text(o.version);
+      label.append('title').text(o.version + ' went live ' + longDate(o.d));
     });
     var line = d3.line().x(function (r) { return x(r.d); }).y(function (r) { return y(r.score); });
     series.forEach(function (s) {
