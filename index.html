@@ -273,6 +273,15 @@
     return out;
   }
 
+  // Google Play's rating for one country, every day there is data: Play Console's daily series, plus the reading
+  // recorded each morning for days the daily series hasn't published yet (the daily value wins on the same day).
+  function playCountryPoints(D, cc) {
+    var byDay = {};
+    D.playCountryHistory.filter(function (r) { return r.country === cc; }).forEach(function (r) { byDay[r.date] = { date: r.date, rating: r.rating }; });
+    (D.playCountryDaily[cc] || []).forEach(function (r) { byDay[r.date] = { date: r.date, rating: r.rating }; });
+    return Object.keys(byDay).sort().map(function (d) { return byDay[d]; });
+  }
+
   // ---------- pure calcs ----------
   // The days every ratings chart covers: from the day the game went live (first release) to the latest day with data.
   function computeBounds(D) {
@@ -323,7 +332,7 @@
       });
     } else {
       // Google Play's rating for the country as Play Console shows it, every day Google publishes
-      (D.playCountryDaily[countries[0]] || []).filter(inRange).forEach(function (r) {
+      playCountryPoints(D, countries[0]).filter(inRange).forEach(function (r) {
         out.push({ date: r.date, platform: 'Google Play', score: r3(r.rating) });
       });
     }
@@ -389,12 +398,14 @@
         row.play_cap = pn ? fmtInt(pn) + ' ratings' : 'No Play ratings in this selection';
       }
     } else if (countries.length) {
-      // The rating Google Play shows for this country (Play Console > Ratings > Breakdown); "Default rating" = too few ratings
+      // The rating Google Play shows for this country on the last day of the selected range (the same value the chart ends on);
+      // "Default rating" = too few ratings in the country, so Google shows its default
       var pcr = D.playCountries.filter(function (r) { return r.country === countries[0]; })[0];
-      if (pcr) {
-        row.play_score = r3(pcr.rating);
-        row.play_cap = pcr.isDefault ? 'Default rating (too few ratings in this country)'
-          : fmtInt(pcr.count) + (pcr.count === 1 ? ' rating' : ' ratings') + ' in the last 7 days';
+      var cpts = playCountryPoints(D, countries[0]).filter(function (r) { return r.date >= from && r.date <= to; });
+      var lastC = cpts[cpts.length - 1];
+      if (lastC) {
+        row.play_score = r3(lastC.rating);
+        row.play_cap = (pcr && pcr.isDefault ? 'Default rating (too few ratings in this country), as of ' : 'As of ') + longDate(parseYmd(lastC.date));
       } else {
         row.play_cap = 'No Play data in this selection';
       }
