@@ -81,6 +81,7 @@
   .rt-sub b { color: var(--fg); font-weight: 500; font-variant-numeric: tabular-nums; }
   .rt-note { margin: 0; font-size: 12px; color: var(--fg-muted); }
   .rt-note[hidden] { display: none; }
+  .rt-notes { padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
   .rt-chips { display: flex; flex-wrap: wrap; gap: 6px; }
   .rt-chip { height: 34px; min-width: 46px; padding: 0 10px; font: inherit; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--fg-muted); background: transparent; border: 1px solid var(--border); border-radius: var(--radius); cursor: pointer; }
   .rt-chip[aria-pressed="true"] { color: var(--bg); background: var(--fg); border-color: var(--fg); }
@@ -155,6 +156,11 @@
       <p class="rt-cap" id="play-cap">—</p>
     </article>
   </section>
+
+  <ul class="rt-note rt-notes">
+    <li>Ratings do not appear at the country level if there aren’t any.</li>
+    <li>Apple ratings start as of 11/20 at the global level and 11/21 at the country level and will be scraped daily until more info is available via an API.</li>
+  </ul>
 
   <section class="rt-chart-card" aria-labelledby="rt-chart-h">
     <h2 id="rt-chart-h">Score over time</h2>
