@@ -407,6 +407,13 @@
       var rc = 0, rs = 0;
       D.iosCountries.forEach(function (r) { if (countries.indexOf(r.country) >= 0) { rc += r.count; rs += r.avg * r.count; } });
       if (rc) { row.ios_score = r3(rs / rc); row.ios_cap = fmtInt(rc) + (rc === 1 ? ' rating' : ' ratings'); }
+      // change vs. the previous day: Apple's recorded daily reading for the selected countries, last two days up to the end of the range
+      var iosByDay = {};
+      D.iosCountryHistory.filter(function (r) { return countries.indexOf(r.country) >= 0 && r.date <= to; }).forEach(function (r) {
+        var a = iosByDay[r.date] || (iosByDay[r.date] = [0, 0]); a[0] += r.count; a[1] += r.avg * r.count;
+      });
+      dc = dayChange(Object.keys(iosByDay).sort().map(function (d) { return { date: d, score: iosByDay[d][1] / iosByDay[d][0] }; }));
+      row.ios_dod = dc[0]; row.ios_dir = dc[1];
     }
     if (countries.length > 1) {
       row.play_cap = 'Google Play can’t combine countries; the chart shows one line per country';
@@ -426,6 +433,10 @@
       // The rating Google Play shows for this country on the last day of the selected range (the same value the chart ends on);
       // "Default rating" = too few ratings in the country, so Google shows its default
       var pcr = D.playCountries.filter(function (r) { return r.country === countries[0]; })[0];
+      // change vs. the previous day: the last two days Google published for this country up to the end of the range
+      dc = dayChange(playCountryPoints(D, countries[0]).filter(function (r) { return r.date <= to && r.rating != null; })
+        .map(function (r) { return { date: r.date, score: r.rating }; }));
+      row.play_dod = dc[0]; row.play_dir = dc[1];
       if (pcr && pcr.isDefault) {
         // too few ratings for Google to show the country's own rating: show the average of the ratings the country gave
         row.play_score = r3(pcr.avg);
